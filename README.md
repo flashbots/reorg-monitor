@@ -11,3 +11,5 @@ Usage:
 ```shell
 go run . -eth <geth_node_uri>
 ```
+
+Instead of `-eth <geth_node_url>` you can also use an `ETH_NODE` environment variable.

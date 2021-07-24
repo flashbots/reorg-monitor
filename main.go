@@ -44,7 +44,7 @@ func main() {
 		case header := <-headers:
 			// Print block
 			t := time.Unix(int64(header.Time), 0).UTC()
-			fmt.Printf("\t %s \t %s \t %s\n", header.Number, t, header.Hash())
+			fmt.Printf("%s \t %s \t %s\n", header.Number, t, header.Hash())
 
 			// Check block
 			checkBlockHeader(header, client)
@@ -84,7 +84,11 @@ func checkBlockHeader(header *types.Header, client *ethclient.Client) {
 func findReorgDepth(header *types.Header, client *ethclient.Client) (depth int64) {
 	parentHash := header.ParentHash
 
-	limit := int64(100)
+	limit := 100
+	if len(blockHashesByHeight) < limit {
+		limit = len(blockHashesByHeight)
+	}
+
 	for {
 		// Is a parent already known?
 		_, found := blockHeightByHash[parentHash]
@@ -94,7 +98,7 @@ func findReorgDepth(header *types.Header, client *ethclient.Client) (depth int64
 
 		// No locally known parent, step back one block and check if it's parents is known
 		depth += 1
-		if depth == limit {
+		if depth == int64(limit) {
 			log.Println("findReorgDepth limit reached")
 			return -1
 		}
