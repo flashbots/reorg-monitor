@@ -15,13 +15,16 @@ import (
 
 var blockHeightByHash map[common.Hash]uint64 = make(map[common.Hash]uint64) // for looking up known parents, to detect reorgs
 var blockHashesByHeight map[uint64][]common.Hash = make(map[uint64][]common.Hash)
+
 var silent bool
+var minReorgDepthToNotify int64
 
 func main() {
 	log.SetOutput(os.Stdout)
 
 	ethUriPtr := flag.String("eth", os.Getenv("ETH_NODE"), "Geth node URI")
-	silentPtr := flag.Bool("silent", false, "don't print info about every block")
+	silentPtr := flag.Bool("silent", false, "only print alerts, no info about every block")
+	minReorgDepthPtr := flag.Int64("mindepth", 1, "minimum reorg depth to notify")
 	flag.Parse()
 
 	if *ethUriPtr == "" {
@@ -29,6 +32,7 @@ func main() {
 	}
 
 	silent = *silentPtr
+	minReorgDepthToNotify = *minReorgDepthPtr
 
 	// Connect to geth node
 	fmt.Printf("Connecting to %s...", *ethUriPtr)
@@ -73,17 +77,19 @@ func checkBlockHeader(header *types.Header, client *ethclient.Client) {
 		return
 	}
 
-	// Check if a sibling exists (then next block will have an uncle)
-	blockHashes, found := blockHashesByHeight[header.Number.Uint64()]
-	if found {
-		fmt.Printf("- block %s / %s has %d already known siblings: %s\n", header.Number, header.Hash(), len(blockHashes), blockHashes)
-	}
+	// // Check if a sibling exists (then next block will have an uncle)
+	// blockHashes, found := blockHashesByHeight[header.Number.Uint64()]
+	// if found {
+	// 	fmt.Printf("- block %s / %s has %d already known siblings: %s\n", header.Number, header.Hash(), len(blockHashes), blockHashes)
+	// }
 
 	// Check if we know parent. If not then it's a reorg (probably block based on uncle)
-	_, found = blockHeightByHash[header.ParentHash]
+	_, found := blockHeightByHash[header.ParentHash]
 	if !found {
 		reorgDepth := findReorgDepth(header, client)
-		fmt.Printf("- reorg with depth=%d in block %s / %s: parent block not found with hash %s\n", reorgDepth, header.Number, header.Hash(), header.ParentHash)
+		if reorgDepth >= minReorgDepthToNotify {
+			reorgAlert(header, reorgDepth)
+		}
 	}
 }
 
@@ -105,7 +111,7 @@ func findReorgDepth(header *types.Header, client *ethclient.Client) (depth int64
 		// No locally known parent, step back one block and check if it's parents is known
 		depth += 1
 		if depth == int64(limit) {
-			log.Println("findReorgDepth limit reached")
+			log.Println("error: findReorgDepth limit reached")
 			return -1
 		}
 
@@ -113,4 +119,10 @@ func findReorgDepth(header *types.Header, client *ethclient.Client) (depth int64
 		Perror(err)
 		parentHash = cheeckBlock.ParentHash
 	}
+}
+
+func reorgAlert(newHeader *types.Header, depth int64) {
+	fmt.Printf("Reorg with depth=%d in block %s / %s: parent block not found with hash %s\n", depth, newHeader.Number, newHeader.Hash(), newHeader.ParentHash)
+	// TODO: print reorg block path vs known path
+	// Note: add custom notification logic here
 }
