@@ -6,10 +6,15 @@ Work in progress, early prototype and experiments.
 
 ---
 
-Usage:
+### Usage
+
+You can set the geth node with `-eth <geth_node_url>` or use an `ETH_NODE` environment variable.
 
 ```shell
-go run . -eth <geth_node_uri>
+# Run in normal mode
+go run .
+
+# Run silently (only print reorgs)
+go run . -silent
 ```
 
-Instead of `-eth <geth_node_url>` you can also use an `ETH_NODE` environment variable.

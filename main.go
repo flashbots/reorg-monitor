@@ -15,20 +15,24 @@ import (
 
 var blockHeightByHash map[common.Hash]uint64 = make(map[common.Hash]uint64) // for looking up known parents, to detect reorgs
 var blockHashesByHeight map[uint64][]common.Hash = make(map[uint64][]common.Hash)
+var silent bool
 
 func main() {
 	log.SetOutput(os.Stdout)
 
-	ethUri := flag.String("eth", os.Getenv("ETH_NODE"), "Geth node URI")
+	ethUriPtr := flag.String("eth", os.Getenv("ETH_NODE"), "Geth node URI")
+	silentPtr := flag.Bool("silent", false, "don't print info about every block")
 	flag.Parse()
 
-	if *ethUri == "" {
+	if *ethUriPtr == "" {
 		log.Fatal("Missing eth node uri")
 	}
 
+	silent = *silentPtr
+
 	// Connect to geth node
-	fmt.Printf("Connecting to %s...", *ethUri)
-	client, err := ethclient.Dial(*ethUri)
+	fmt.Printf("Connecting to %s...", *ethUriPtr)
+	client, err := ethclient.Dial(*ethUriPtr)
 	Perror(err)
 	fmt.Printf(" ok\n")
 
@@ -43,8 +47,10 @@ func main() {
 			log.Fatal(err)
 		case header := <-headers:
 			// Print block
-			t := time.Unix(int64(header.Time), 0).UTC()
-			fmt.Printf("%s \t %s \t %s\n", header.Number, t, header.Hash())
+			if !silent {
+				t := time.Unix(int64(header.Time), 0).UTC()
+				fmt.Printf("%s \t %s \t %s\n", header.Number, t, header.Hash())
+			}
 
 			// Check block
 			checkBlockHeader(header, client)
