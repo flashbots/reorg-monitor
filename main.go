@@ -13,7 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
-var blockHeightByHash map[common.Hash]uint64 = make(map[common.Hash]uint64) // for looking up known parents, to detect reorgs
+var blockHeaderByHash map[common.Hash]*types.Header = make(map[common.Hash]*types.Header) // for looking up known parents, to detect reorgs
 var blockHashesByHeight map[uint64][]common.Hash = make(map[uint64][]common.Hash)
 
 var silent bool
@@ -53,15 +53,15 @@ func main() {
 			// Print block
 			if !silent {
 				t := time.Unix(int64(header.Time), 0).UTC()
-				fmt.Printf("%s \t %s \t %s\n", header.Number, t, header.Hash())
+				log.Printf("Block %s \t %s \t %s\n", header.Number, t, header.Hash())
 			}
 
 			// Check block
 			checkBlockHeader(header, client)
 
 			// Add block to history
+			blockHeaderByHash[header.Hash()] = header
 			blockHashesByHeight[header.Number.Uint64()] = append(blockHashesByHeight[header.Number.Uint64()], header.Hash())
-			blockHeightByHash[header.Hash()] = header.Number.Uint64()
 		}
 	}
 }
@@ -73,7 +73,7 @@ func Perror(err error) {
 }
 
 func checkBlockHeader(header *types.Header, client *ethclient.Client) {
-	if len(blockHeightByHash) == 0 { // nothing to do if we have no history yet
+	if len(blockHeaderByHash) == 0 { // nothing to do if we have no history yet
 		return
 	}
 
@@ -84,45 +84,95 @@ func checkBlockHeader(header *types.Header, client *ethclient.Client) {
 	// }
 
 	// Check if we know parent. If not then it's a reorg (probably block based on uncle)
-	_, found := blockHeightByHash[header.ParentHash]
+	_, found := blockHeaderByHash[header.ParentHash]
 	if !found {
-		reorgDepth := findReorgDepth(header, client)
+		reorgDepth, newHeaders := findReorgDepth(header, client)
 		if reorgDepth >= minReorgDepthToNotify {
-			reorgAlert(header, reorgDepth)
+			reorgAlert(header, reorgDepth, newHeaders)
 		}
 	}
 }
 
-func findReorgDepth(header *types.Header, client *ethclient.Client) (depth int64) {
-	parentHash := header.ParentHash
+// findReorgDepth
+func findReorgDepth(header *types.Header, client *ethclient.Client) (depth int64, newBlockHeaders []*types.Header) {
+	newBlockHeaders = make([]*types.Header, 0)
 
 	limit := 100
-	if len(blockHashesByHeight) < limit {
-		limit = len(blockHashesByHeight)
+	if len(blockHeaderByHash) < limit {
+		limit = len(blockHeaderByHash)
 	}
 
+	parentHash := header.ParentHash
 	for {
-		// Is a parent already known?
-		_, found := blockHeightByHash[parentHash]
+		// Finish search when finding a known parent
+		_, found := blockHeaderByHash[parentHash]
 		if found {
-			return depth
+			// fmt.Printf("findReorgDepth returning %d headers: %v\n", len(newBlockHeaders), newBlockHeaders)
+			return depth, newBlockHeaders
 		}
 
-		// No locally known parent, step back one block and check if it's parents is known
-		depth += 1
+		// Avoid an endless loop
 		if depth == int64(limit) {
-			log.Println("error: findReorgDepth limit reached")
-			return -1
+			log.Printf("findReorgDepth error on block %d %s: search limit reached without finding parent\n", header.Number.Uint64(), header.Hash())
+			return -1, newBlockHeaders
 		}
 
-		cheeckBlock, err := client.HeaderByHash(context.Background(), parentHash)
+		// Step back one more block to check if the parent is known
+		depth += 1
+		checkBlockHeader, err := client.HeaderByHash(context.Background(), parentHash)
 		Perror(err)
-		parentHash = cheeckBlock.ParentHash
+		newBlockHeaders = append(newBlockHeaders, checkBlockHeader)
+		parentHash = checkBlockHeader.ParentHash
+		// fmt.Printf("findReorgDepth check depth %d: block %d %s. It's parent: %s\n", depth, checkBlockHeader.Number.Uint64(), checkBlockHeader.Hash(), parentHash)
 	}
 }
 
-func reorgAlert(newHeader *types.Header, depth int64) {
-	fmt.Printf("Reorg with depth=%d in block %s / %s: parent block not found with hash %s\n", depth, newHeader.Number, newHeader.Hash(), newHeader.ParentHash)
-	// TODO: print reorg block path vs known path
+func reorgAlert(newHeader *types.Header, depth int64, newBlockHeaders []*types.Header) {
+	log.Printf("Reorg with depth=%d in block %s %s: parent block not found with hash %s\n", depth, newHeader.Number, newHeader.Hash(), newHeader.ParentHash)
+	// fmt.Printf("reorgAlert newBlockHeaders: %d headers: %v\n", len(newBlockHeaders), newBlockHeaders)
+
+	earliestNewBlock := *newBlockHeaders[len(newBlockHeaders)-1]
+	// fmt.Printf("reorgAlert earliestNewBlock: %v\n", earliestNewBlock)
+
+	lastCommonBlockHash := earliestNewBlock.ParentHash // parent of last (earliest) new block
+	// fmt.Printf("reorgAlert lastCommonBlockHash: %v\n", lastCommonBlockHash)
+
+	lastCommonBlockHeader := blockHeaderByHash[lastCommonBlockHash]
+	// fmt.Printf("reorgAlert lastCommonBlockHeader: %v\n", lastCommonBlockHeader)
+
+	lastCommonBlockNumber := lastCommonBlockHeader.Number.Uint64()
+
+	fmt.Println("Last common block:")
+	fmt.Printf("- %d %s\n", lastCommonBlockNumber, lastCommonBlockHash)
+
+	fmt.Println("Previously known path:")
+	blockNumber := lastCommonBlockNumber
+	for {
+		blockNumber += 1
+		hashes, found := blockHashesByHeight[blockNumber]
+		if !found {
+			break
+		}
+
+		// hashes could be more than 1 if it has siblings. pretty print
+		hashesStr := hashes[0].String()
+		if len(hashes) > 1 {
+			hashesStr = fmt.Sprintf("%s", hashes)
+		}
+
+		// add uncle information (first replaced block in old path became the uncle)
+		uncleStr := "(uncle)"
+		if blockNumber > lastCommonBlockNumber+1 {
+			uncleStr = "(child path of uncle)"
+		}
+		fmt.Printf("- %d %s %s\n", blockNumber, hashesStr, uncleStr)
+	}
+
+	fmt.Println("New path:")
+	for i := len(newBlockHeaders) - 1; i >= 0; i-- {
+		fmt.Printf("- %d %s\n", newBlockHeaders[i].Number.Uint64(), newBlockHeaders[i].Hash())
+	}
+	fmt.Printf("- %d %s\n", newHeader.Number, newHeader.Hash())
+
 	// Note: add custom notification logic here
 }
