@@ -129,23 +129,16 @@ func findReorgDepth(header *types.Header, client *ethclient.Client) (depth int64
 
 func reorgAlert(newHeader *types.Header, depth int64, newBlockHeaders []*types.Header) {
 	log.Printf("Reorg with depth=%d in block %s %s: parent block not found with hash %s\n", depth, newHeader.Number, newHeader.Hash(), newHeader.ParentHash)
-	// fmt.Printf("reorgAlert newBlockHeaders: %d headers: %v\n", len(newBlockHeaders), newBlockHeaders)
 
 	earliestNewBlock := *newBlockHeaders[len(newBlockHeaders)-1]
-	// fmt.Printf("reorgAlert earliestNewBlock: %v\n", earliestNewBlock)
-
 	lastCommonBlockHash := earliestNewBlock.ParentHash // parent of last (earliest) new block
-	// fmt.Printf("reorgAlert lastCommonBlockHash: %v\n", lastCommonBlockHash)
-
 	lastCommonBlockHeader := blockHeaderByHash[lastCommonBlockHash]
-	// fmt.Printf("reorgAlert lastCommonBlockHeader: %v\n", lastCommonBlockHeader)
-
 	lastCommonBlockNumber := lastCommonBlockHeader.Number.Uint64()
 
 	fmt.Println("Last common block:")
 	fmt.Printf("- %d %s\n", lastCommonBlockNumber, lastCommonBlockHash)
 
-	fmt.Println("Previously known path:")
+	fmt.Println("Old path (before reorg):")
 	blockNumber := lastCommonBlockNumber
 	for {
 		blockNumber += 1
@@ -161,14 +154,16 @@ func reorgAlert(newHeader *types.Header, depth int64, newBlockHeaders []*types.H
 		}
 
 		// add uncle information (first replaced block in old path became the uncle)
-		uncleStr := "(uncle)"
+		uncleStr := "(now uncle)"
 		if blockNumber > lastCommonBlockNumber+1 {
 			uncleStr = "(child path of uncle)"
 		}
 		fmt.Printf("- %d %s %s\n", blockNumber, hashesStr, uncleStr)
+
+		// Here is a good place to save data from transactions that are children of the uncle and not included in the node DB
 	}
 
-	fmt.Println("New path:")
+	fmt.Println("New path after reorg:")
 	for i := len(newBlockHeaders) - 1; i >= 0; i-- {
 		fmt.Printf("- %d %s\n", newBlockHeaders[i].Number.Uint64(), newBlockHeaders[i].Hash())
 	}
