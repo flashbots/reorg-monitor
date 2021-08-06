@@ -56,9 +56,12 @@ New chain after reorg:
 - 12946890 0xe20d8759446ef48f9a3f0bccbd85f61899c10a33561bccce4a406af3e9957d57
 ```
 
+Note: You can find more infos about the children of uncles via AlchemyApi: https://composer.alchemyapi.io/
+
 ---
 
 ## TODO
 
+* Printing replaced blocks: add miner
 * Limit memory growth by pruning old blocks.
 * For each new header, get the full block (with tx receipts?) to inspect tx in case of reorg
