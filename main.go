@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
+	"math/big"
 	"os"
 	"time"
 
@@ -15,7 +17,7 @@ import (
 
 var blockByHash map[common.Hash]*types.Block = make(map[common.Hash]*types.Block) // for looking up known parents, to detect reorgs
 var blockHashesByHeight map[uint64][]common.Hash = make(map[uint64][]common.Hash)
-
+var minerEarningsByBlockHash map[common.Hash]*big.Int = make(map[common.Hash]*big.Int)
 var silent bool
 var minReorgDepthToNotify uint64
 
@@ -58,12 +60,24 @@ func main() {
 		case header := <-headers:
 			// Fetch full block information
 			block, err := client.BlockByHash(context.Background(), header.Hash())
-			Perror(err)
+			if err != nil {
+				log.Println("error", err)
+				continue
+			}
+
+			// Get miner earnings
+			earnings, err := GetBlockCoinbaseEarnings(client, block)
+			if err != nil {
+				log.Println("error", err)
+				continue
+			}
+			minerEarningsByBlockHash[header.Hash()] = earnings
 
 			// Print block
-			if !silent || len(block.Uncles()) > 0 {
+			// if !silent || len(block.Uncles()) > 0 {
+			if !silent {
 				t := time.Unix(int64(header.Time), 0).UTC()
-				log.Printf("Block %s %s \t %s \t tx: %3d, uncles: %d \n", block.Number(), block.Hash(), t, len(block.Transactions()), len(block.Uncles()))
+				log.Printf("Block %s %s \t %s \t tx: %3d, uncles: %d, earnings: %s \n", block.Number(), block.Hash(), t, len(block.Transactions()), len(block.Uncles()), BalanceToEth(earnings).Text('f', 4))
 			}
 
 			// Check block
@@ -154,9 +168,9 @@ func findReplacedBlockDepth(newBlocks []*types.Block) uint64 {
 
 func reorgAlert(latestBlock *types.Block, depth uint64, newChainSegment []*types.Block) {
 	msg := fmt.Sprintf("Reorg with depth=%d in block %s", depth, latestBlock.Header().Number)
-	if depth > 1 {
-		msg = fmt.Sprintf("\033[1;33m%s\033[0m", msg)
-	}
+	// if depth > 1 {
+	// 	msg = fmt.Sprintf("\033[1;33m%s\033[0m", msg)
+	// }
 	log.Println(msg)
 	// log.Printf("Reorg with depth=%d in block %s %s: parent block not found with hash %s\n", depth, newBlock.Header().Number, newBlock.Header().Hash(), newBlock.Header().ParentHash)
 
@@ -178,20 +192,19 @@ func reorgAlert(latestBlock *types.Block, depth uint64, newChainSegment []*types
 		}
 
 		// hashes could be more than 1 if it has siblings. pretty print
-		hashesStr := hashes[0].String()
-		if len(hashes) > 1 {
-			hashesStr = fmt.Sprintf("%s", hashes)
+		for _, hash := range hashes {
+			blockInfo := ""
+			replacedBlock, found := blockByHash[hash]
+			if found {
+				blockInfo += fmt.Sprintf("/ %3d tx, miner %s, ", len(replacedBlock.Transactions()), replacedBlock.Coinbase())
+			}
+			minerEarnings := minerEarningsByBlockHash[hash]
+			blockInfo += fmt.Sprintf("earnings: %s ETH", BalanceToEth(minerEarnings).Text('f', 2))
+			if blockNumber == lastCommonBlockNumber+1 {
+				blockInfo += " (now uncle)"
+			}
+			fmt.Printf("- %d %s %s\n", blockNumber, hash.String(), blockInfo)
 		}
-
-		blockInfo := ""
-		replacedBlock, found := blockByHash[hashes[0]]
-		if found {
-			blockInfo += fmt.Sprintf("/ %3d tx, miner %s", len(replacedBlock.Transactions()), replacedBlock.Coinbase())
-		}
-		if blockNumber == lastCommonBlockNumber+1 {
-			blockInfo += " (now uncle)"
-		}
-		fmt.Printf("- %d %s %s\n", blockNumber, hashesStr, blockInfo)
 
 		// Here is a good place to save data from transactions that are children of the uncle and not included in the node DB
 	}
@@ -203,4 +216,46 @@ func reorgAlert(latestBlock *types.Block, depth uint64, newChainSegment []*types
 	fmt.Printf("- %d %s / %3d tx, miner %s\n", latestBlock.Number(), latestBlock.Hash(), len(latestBlock.Transactions()), latestBlock.Coinbase())
 	fmt.Println("")
 	// Note: add custom notification logic here
+}
+
+func BalanceToEth(balance *big.Int) *big.Float {
+	fbalance := new(big.Float)
+	fbalance.SetInt(balance)
+	// fbalance.SetString(balance)
+	ethValue := new(big.Float).Quo(fbalance, big.NewFloat(math.Pow10(18)))
+	return ethValue
+}
+
+func GetBlockCoinbaseEarnings(client *ethclient.Client, block *types.Block) (*big.Int, error) {
+	balanceAfterBlock, err := client.BalanceAt(context.Background(), block.Coinbase(), block.Number())
+	if err != nil {
+		return nil, err
+	}
+
+	balanceBeforeBlock, err := client.BalanceAt(context.Background(), block.Coinbase(), new(big.Int).Sub(block.Number(), common.Big1))
+	if err != nil {
+		return nil, err
+	}
+
+	earnings := new(big.Int).Sub(balanceAfterBlock, balanceBeforeBlock)
+
+	// Iterate over all transactions - add sent value back into earnings, remove received value
+	for _, tx := range block.Transactions() {
+		from, err := types.Sender(types.NewLondonSigner(tx.ChainId()), tx)
+		if err != nil {
+			fmt.Println("getsender error", err, tx.Hash())
+			continue
+		}
+
+		if from == block.Coinbase() {
+			earnings = new(big.Int).Add(earnings, tx.Value())
+		}
+
+		to := tx.To()
+		if to != nil && *to == block.Coinbase() {
+			earnings = new(big.Int).Sub(earnings, tx.Value())
+		}
+	}
+
+	return earnings, nil
 }
