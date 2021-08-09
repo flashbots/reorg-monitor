@@ -2,12 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/csv"
 	"flag"
 	"fmt"
 	"log"
-	"math"
 	"math/big"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -22,11 +23,41 @@ var earningsService *EarningsService
 var silent bool
 var minReorgDepthToNotify uint64
 
-func Perror(err error) {
-	if err != nil {
-		panic(err)
+// BlockInfo is used to cache
+type BlockInfo struct {
+	Block              *types.Block
+	CoinbaseDifference *big.Int
+	IsReorged          bool
+	IsUncle            bool
+	IsChild            bool
+	ReorgDepth         int // 1 if uncle, 2 if first child, etc
+	NumUncles          int
+}
+
+func (b *BlockInfo) ToCsvRecord() []string {
+	return []string{
+		b.Block.Number().String(),
+		b.Block.Hash().String(),
+		b.Block.ParentHash().String(),
+		strconv.FormatUint(b.Block.Time(), 10),
+
+		b.Block.Difficulty().String(),
+		strconv.Itoa(len(b.Block.Uncles())),
+		strconv.Itoa(len(b.Block.Transactions())),
+
+		strconv.FormatBool(b.IsReorged),
+		strconv.FormatBool(b.IsUncle),
+		strconv.FormatBool(b.IsChild),
+		strconv.Itoa(b.ReorgDepth),
+
+		BalanceToEthStr(b.CoinbaseDifference),
 	}
 }
+
+var blockInfoCache map[common.Hash]*BlockInfo = make(map[common.Hash]*BlockInfo) // wait 5 blocks before writing, because instantly we don't know if a block is going to be reorged
+
+var csvWriter *csv.Writer
+var latestHeightWrittenToCsv uint64
 
 func main() {
 	log.SetOutput(os.Stdout)
@@ -34,10 +65,25 @@ func main() {
 	ethUriPtr := flag.String("eth", os.Getenv("ETH_NODE"), "Geth node URI")
 	silentPtr := flag.Bool("silent", false, "only print alerts, no info about every block")
 	minReorgDepthPtr := flag.Uint64("mindepth", 1, "minimum reorg depth to notify")
+	csvFilename := flag.String("csv", "", "CSV file for saving blocks")
 	flag.Parse()
 
 	if *ethUriPtr == "" {
 		log.Fatal("Missing eth node uri")
+	}
+
+	// Setup the CSV writer
+	if *csvFilename != "" {
+		if FileExists(*csvFilename) {
+			log.Fatal("File already exists:", *csvFilename)
+		}
+
+		file, err := os.Create(*csvFilename)
+		Perror(err)
+		defer file.Close()
+		csvWriter = csv.NewWriter(file)
+		defer csvWriter.Flush()
+		writeHeaderToCsv()
 	}
 
 	silent = *silentPtr
@@ -49,6 +95,7 @@ func main() {
 	Perror(err)
 	fmt.Printf(" ok\n")
 
+	// Setup the service to query block earnings
 	earningsService = NewEarningsService(client)
 
 	// Subscribe to new blocks
@@ -76,7 +123,6 @@ func main() {
 			}
 
 			// Print block
-			// if !silent || len(block.Uncles()) > 0 {
 			if !silent {
 				t := time.Unix(int64(header.Time), 0).UTC()
 				log.Printf("Block %s %s \t %s \t tx: %3d, uncles: %d, earnings: %s \n", block.Number(), block.Hash(), t, len(block.Transactions()), len(block.Uncles()), BalanceToEthStr(earnings))
@@ -88,35 +134,70 @@ func main() {
 			// Add block to history
 			blockByHash[header.Hash()] = block
 			blockHashesByHeight[header.Number.Uint64()] = append(blockHashesByHeight[header.Number.Uint64()], header.Hash())
+
+			// Write to CSV
+			writeToCsv(header.Number.Uint64())
 		}
 	}
 }
 
-func checkBlock(block *types.Block, client *ethclient.Client) {
-	if len(blockByHash) == 0 { // nothing to do if we have no history yet
-		return
-	}
-
-	// // Check if a sibling exists (then next block will have an uncle)
-	// blockHashes, found := blockHashesByHeight[header.Number.Uint64()]
-	// if found {
-	// 	fmt.Printf("- block %s / %s has %d already known siblings: %s\n", header.Number, header.Hash(), len(blockHashes), blockHashes)
-	// }
-
+func checkBlock(block *types.Block, client *ethclient.Client) (reorgFound bool) {
 	// Check if we know parent. If not then it's a reorg (this node got first the future uncle and possibly children).
 	_, found := blockByHash[block.ParentHash()]
-	if !found {
-		newBlocks := findNewChain(block.Header(), client)
-		if len(newBlocks) == 0 {
-			log.Println("Possible reorg, but didn't couldn't determine new blocks (probably didn't run long enough to find common ancestor)")
-			return
+	if found || len(blockByHash) == 0 { // parent was found, no reorg
+		earnings, _ := earningsService.GetBlockCoinbaseEarnings(block)
+		blockInfoCache[block.Hash()] = &BlockInfo{
+			Block:              block,
+			CoinbaseDifference: earnings,
+			IsReorged:          false,
+			IsUncle:            false,
+			IsChild:            false,
+			ReorgDepth:         0,
+			NumUncles:          len(block.Uncles()),
 		}
+		return false
+	}
 
-		reorgDepth := findReplacedBlockDepth(newBlocks)
-		if reorgDepth >= minReorgDepthToNotify {
-			reorgAlert(block, reorgDepth, newBlocks)
+	// We have a reorg. Find the new full chain of new blocks
+	newBlocks := findNewChain(block.Header(), client)
+	if len(newBlocks) == 0 {
+		log.Println("Possible reorg, but didn't couldn't determine new blocks (probably didn't run long enough to find common ancestor)")
+		return
+	}
+	for _, newBlock := range newBlocks {
+		earnings, _ := earningsService.GetBlockCoinbaseEarnings(newBlock)
+		blockInfoCache[newBlock.Hash()] = &BlockInfo{
+			Block:              newBlock,
+			CoinbaseDifference: earnings,
+			IsReorged:          false,
+			IsUncle:            false,
+			IsChild:            false,
+			ReorgDepth:         0,
+			NumUncles:          len(newBlock.Uncles()),
 		}
 	}
+
+	// Find the depth of replaced blocks
+	reorgDepth, replacedBlocks := findReplacedBlocks(newBlocks)
+	for blockIndex, block := range replacedBlocks {
+		earnings, _ := earningsService.GetBlockCoinbaseEarnings(block)
+		blockInfoCache[block.Hash()] = &BlockInfo{
+			Block:              block,
+			CoinbaseDifference: earnings,
+			IsReorged:          true,
+			IsUncle:            blockIndex == 0,
+			IsChild:            blockIndex > 0,
+			ReorgDepth:         blockIndex + 1,
+			NumUncles:          len(block.Uncles()),
+		}
+	}
+
+	// Alert
+	if reorgDepth >= minReorgDepthToNotify {
+		reorgAlert(block, reorgDepth, newBlocks)
+	}
+
+	return true
 }
 
 // findReorgDepth: count chain of replaced blocks
@@ -151,7 +232,9 @@ func findNewChain(header *types.Header, client *ethclient.Client) (newBlocks []*
 	}
 }
 
-func findReplacedBlockDepth(newBlocks []*types.Block) uint64 {
+func findReplacedBlocks(newBlocks []*types.Block) (depth uint64, replacedBlocks []*types.Block) {
+	replacedBlocks = make([]*types.Block, 0)
+
 	earliestNewBlock := *newBlocks[len(newBlocks)-1]
 	lastCommonBlockHash := earliestNewBlock.ParentHash() // parent of last (earliest) new block
 	lastCommonBlock := blockByHash[lastCommonBlockHash]
@@ -160,12 +243,19 @@ func findReplacedBlockDepth(newBlocks []*types.Block) uint64 {
 	blockNumber := lastCommonBlockNumber // iterate forward starting at last common block
 	for {
 		blockNumber += 1
-		_, found := blockHashesByHeight[blockNumber]
+		blockHashesAtHeight, found := blockHashesByHeight[blockNumber]
 		if !found {
 			break
 		}
+
+		for _, hash := range blockHashesAtHeight {
+			block, _ := blockByHash[hash]
+			replacedBlocks = append(replacedBlocks, block)
+		}
 	}
-	return blockNumber - lastCommonBlockNumber - 1
+
+	reorgDepth := blockNumber - lastCommonBlockNumber - 1
+	return reorgDepth, replacedBlocks
 }
 
 func reorgAlert(latestBlock *types.Block, depth uint64, newChainSegment []*types.Block) {
@@ -221,17 +311,60 @@ func reorgAlert(latestBlock *types.Block, depth uint64, newChainSegment []*types
 	// Note: add custom notification logic here
 }
 
-func BalanceToEth(balance *big.Int) *big.Float {
-	fbalance := new(big.Float)
-	fbalance.SetInt(balance)
-	// fbalance.SetString(balance)
-	ethValue := new(big.Float).Quo(fbalance, big.NewFloat(math.Pow10(18)))
-	return ethValue
+func AddLineToCsv(record []string) {
+	if csvWriter != nil {
+		err := csvWriter.Write(record)
+		csvWriter.Flush()
+		if err != nil {
+			log.Println("error writing to csv:", err)
+		}
+	}
 }
 
-func BalanceToEthStr(balance *big.Int) string {
-	if balance == nil {
-		return "nil"
+func writeHeaderToCsv() {
+	AddLineToCsv([]string{
+		"block number",
+		"block hash",
+		"parent hash",
+		"block timestamp",
+
+		"difficulty",
+		"num uncles",
+		"num tx",
+
+		"isReorged",
+		"isUncle",
+		"isChild",
+		"reorg depth",
+
+		"coinbase diff",
+	})
+}
+
+func writeToCsv(latestHeight uint64) {
+	if latestHeightWrittenToCsv == 0 {
+		latestHeightWrittenToCsv = latestHeight - 1
+		return
 	}
-	return BalanceToEth(balance).Text('f', 4)
+
+	if latestHeightWrittenToCsv < latestHeight-5 {
+		for height := latestHeightWrittenToCsv + 1; height <= latestHeight-5; height++ {
+			// Get all hashes for this height
+			hashes, found := blockHashesByHeight[height]
+			if !found {
+				continue
+			}
+
+			// For all blocks at this height, save to CSV
+			for _, hash := range hashes {
+				blockInfo, found := blockInfoCache[hash]
+				if !found {
+					continue
+				}
+
+				AddLineToCsv(blockInfo.ToCsvRecord())
+			}
+			latestHeightWrittenToCsv = height
+		}
+	}
 }
