@@ -116,11 +116,12 @@ func addBlockToHistory(block *types.Block) {
 }
 
 func checkBlock(block *types.Block, client *ethclient.Client) (reorgFound bool) {
+	earnings, _ := earningsService.GetBlockCoinbaseEarnings(block)
+	blockInfoCache[block.Hash()] = NewBlockInfoFromBlock(block, earnings)
+
 	// Check if we know parent. If not then it's a reorg (this node got first the future uncle and possibly children).
 	_, found := blockByHash[block.ParentHash()]
 	if found || len(blockByHash) == 0 { // parent was found, no reorg
-		earnings, _ := earningsService.GetBlockCoinbaseEarnings(block)
-		blockInfoCache[block.Hash()] = NewBlockInfoFromBlock(block, earnings)
 		return false
 	}
 
@@ -131,16 +132,16 @@ func checkBlock(block *types.Block, client *ethclient.Client) (reorgFound bool) 
 		return true
 	}
 
+	// Find reorg depth and replaced blocks
+	reorgDepth, replacedBlocks := findReplacedBlocks(newBlocks)
+
 	// Add new blocks to history and blockInfoCache
 	for _, newBlock := range newBlocks {
 		addBlockToHistory(newBlock)
 
 		earnings, _ := earningsService.GetBlockCoinbaseEarnings(newBlock)
-		blockInfoCache[block.Hash()] = NewBlockInfoFromBlock(block, earnings)
+		blockInfoCache[newBlock.Hash()] = NewBlockInfoFromBlock(newBlock, earnings)
 	}
-
-	// Find reorg depth and replaced blocks
-	reorgDepth, replacedBlocks := findReplacedBlocks(newBlocks)
 
 	// Add replaced (reorged) blocks to blockInfoCache
 	for blockIndex, block := range replacedBlocks {
@@ -157,7 +158,7 @@ func checkBlock(block *types.Block, client *ethclient.Client) (reorgFound bool) 
 
 	// Alert
 	if reorgDepth >= minReorgDepthToNotify {
-		reorgAlert(block, reorgDepth, newBlocks)
+		reorgAlert(block, reorgDepth, replacedBlocks, newBlocks)
 	}
 
 	return true
@@ -225,7 +226,7 @@ func findReplacedBlocks(newBlocks []*types.Block) (depth uint64, replacedBlocks 
 	return reorgDepth, replacedBlocks
 }
 
-func reorgAlert(latestBlock *types.Block, depth uint64, newChainSegment []*types.Block) {
+func reorgAlert(latestBlock *types.Block, depth uint64, replacedChainSement []*types.Block, newChainSegment []*types.Block) {
 	msg := fmt.Sprintf("Reorg with depth=%d in block %s", depth, latestBlock.Header().Number)
 	log.Println(msg)
 
@@ -238,29 +239,39 @@ func reorgAlert(latestBlock *types.Block, depth uint64, newChainSegment []*types
 	earnings, _ := earningsService.GetBlockCoinbaseEarnings(latestBlock)
 	fmt.Printf("- %d %3s / %3d tx, miner %s, earnings: %s ETH\n", lastCommonBlockNumber, lastCommonBlockHash, len(lastCommonBlock.Transactions()), lastCommonBlock.Coinbase(), BalanceToEthStr(earnings))
 
+	// fmt.Println("Old chain (replaced blocks):")
+	// blockNumber := lastCommonBlockNumber
+	// for {
+	// 	blockNumber += 1
+	// 	hashes, found := blockHashesByHeight[blockNumber]
+	// 	if !found {
+	// 		break
+	// 	}
+
+	// 	for _, hash := range hashes { // block can have more than 1 uncles
+	// 		blockInfo := ""
+	// 		replacedBlock, found := blockByHash[hash]
+	// 		if found {
+	// 			blockInfo += fmt.Sprintf("/ %3d tx, miner %s, ", len(replacedBlock.Transactions()), replacedBlock.Coinbase())
+	// 		}
+
+	// 		earnings, _ := earningsService.GetBlockCoinbaseEarnings(replacedBlock)
+	// 		blockInfo += fmt.Sprintf("earnings: %s ETH", BalanceToEthStr(earnings))
+	// 		if blockNumber == lastCommonBlockNumber+1 {
+	// 			blockInfo += " (now uncle)"
+	// 		}
+	// 		fmt.Printf("- %d %s %s\n", blockNumber, hash.String(), blockInfo)
+	// 	}
+	// }
+
 	fmt.Println("Old chain (replaced blocks):")
-	blockNumber := lastCommonBlockNumber
-	for {
-		blockNumber += 1
-		hashes, found := blockHashesByHeight[blockNumber]
-		if !found {
-			break
+	for _, replacedBlock := range replacedChainSement {
+		earnings, _ := earningsService.GetBlockCoinbaseEarnings(replacedBlock)
+		blockInfo := fmt.Sprintf("- %d %s / %3d tx, miner %s, earnings: %s ETH", replacedBlock.Number(), replacedBlock.Hash(), len(replacedBlock.Transactions()), replacedBlock.Coinbase(), BalanceToEthStr(earnings))
+		if replacedBlock.NumberU64() == lastCommonBlockNumber+1 {
+			blockInfo += " (now uncle)"
 		}
-
-		for _, hash := range hashes { // block can have more than 1 uncles
-			blockInfo := ""
-			replacedBlock, found := blockByHash[hash]
-			if found {
-				blockInfo += fmt.Sprintf("/ %3d tx, miner %s, ", len(replacedBlock.Transactions()), replacedBlock.Coinbase())
-			}
-
-			earnings, _ := earningsService.GetBlockCoinbaseEarnings(replacedBlock)
-			blockInfo += fmt.Sprintf("earnings: %s ETH", BalanceToEthStr(earnings))
-			if blockNumber == lastCommonBlockNumber+1 {
-				blockInfo += " (now uncle)"
-			}
-			fmt.Printf("- %d %s %s\n", blockNumber, hash.String(), blockInfo)
-		}
+		fmt.Println(blockInfo)
 	}
 
 	fmt.Println("New chain after reorg:")
