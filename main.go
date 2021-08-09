@@ -8,7 +8,6 @@ import (
 	"log"
 	"math/big"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -22,37 +21,6 @@ var earningsService *EarningsService
 
 var silent bool
 var minReorgDepthToNotify uint64
-
-// BlockInfo is used to cache
-type BlockInfo struct {
-	Block              *types.Block
-	CoinbaseDifference *big.Int
-	IsReorged          bool
-	IsUncle            bool
-	IsChild            bool
-	ReorgDepth         int // 1 if uncle, 2 if first child, etc
-	NumUncles          int
-}
-
-func (b *BlockInfo) ToCsvRecord() []string {
-	return []string{
-		b.Block.Number().String(),
-		b.Block.Hash().String(),
-		b.Block.ParentHash().String(),
-		strconv.FormatUint(b.Block.Time(), 10),
-
-		b.Block.Difficulty().String(),
-		strconv.Itoa(len(b.Block.Uncles())),
-		strconv.Itoa(len(b.Block.Transactions())),
-
-		strconv.FormatBool(b.IsReorged),
-		strconv.FormatBool(b.IsUncle),
-		strconv.FormatBool(b.IsChild),
-		strconv.Itoa(b.ReorgDepth),
-
-		BalanceToEthStr(b.CoinbaseDifference),
-	}
-}
 
 var blockInfoCache map[common.Hash]*BlockInfo = make(map[common.Hash]*BlockInfo) // wait 5 blocks before writing, because instantly we don't know if a block is going to be reorged
 
@@ -83,7 +51,7 @@ func main() {
 		defer file.Close()
 		csvWriter = csv.NewWriter(file)
 		defer csvWriter.Flush()
-		writeHeaderToCsv()
+		csvWriteHeader()
 	}
 
 	silent = *silentPtr
@@ -136,7 +104,7 @@ func main() {
 			blockHashesByHeight[header.Number.Uint64()] = append(blockHashesByHeight[header.Number.Uint64()], header.Hash())
 
 			// Write to CSV
-			writeToCsv(header.Number.Uint64())
+			csvWriteBlockInfo(header.Number.Uint64())
 		}
 	}
 }
@@ -146,15 +114,7 @@ func checkBlock(block *types.Block, client *ethclient.Client) (reorgFound bool) 
 	_, found := blockByHash[block.ParentHash()]
 	if found || len(blockByHash) == 0 { // parent was found, no reorg
 		earnings, _ := earningsService.GetBlockCoinbaseEarnings(block)
-		blockInfoCache[block.Hash()] = &BlockInfo{
-			Block:              block,
-			CoinbaseDifference: earnings,
-			IsReorged:          false,
-			IsUncle:            false,
-			IsChild:            false,
-			ReorgDepth:         0,
-			NumUncles:          len(block.Uncles()),
-		}
+		blockInfoCache[block.Hash()] = NewBlockInfoFromBlock(block, earnings)
 		return false
 	}
 
@@ -164,21 +124,17 @@ func checkBlock(block *types.Block, client *ethclient.Client) (reorgFound bool) 
 		log.Println("Possible reorg, but didn't couldn't determine new blocks (probably didn't run long enough to find common ancestor)")
 		return
 	}
+
+	// Add new blocks to blockInfoCache
 	for _, newBlock := range newBlocks {
 		earnings, _ := earningsService.GetBlockCoinbaseEarnings(newBlock)
-		blockInfoCache[newBlock.Hash()] = &BlockInfo{
-			Block:              newBlock,
-			CoinbaseDifference: earnings,
-			IsReorged:          false,
-			IsUncle:            false,
-			IsChild:            false,
-			ReorgDepth:         0,
-			NumUncles:          len(newBlock.Uncles()),
-		}
+		blockInfoCache[block.Hash()] = NewBlockInfoFromBlock(block, earnings)
 	}
 
-	// Find the depth of replaced blocks
+	// Find reorg depth and replaced blocks
 	reorgDepth, replacedBlocks := findReplacedBlocks(newBlocks)
+
+	// Add replaced (reorged) blocks to blockInfoCache
 	for blockIndex, block := range replacedBlocks {
 		earnings, _ := earningsService.GetBlockCoinbaseEarnings(block)
 		blockInfoCache[block.Hash()] = &BlockInfo{
@@ -188,7 +144,6 @@ func checkBlock(block *types.Block, client *ethclient.Client) (reorgFound bool) 
 			IsUncle:            blockIndex == 0,
 			IsChild:            blockIndex > 0,
 			ReorgDepth:         blockIndex + 1,
-			NumUncles:          len(block.Uncles()),
 		}
 	}
 
@@ -280,8 +235,7 @@ func reorgAlert(latestBlock *types.Block, depth uint64, newChainSegment []*types
 			break
 		}
 
-		// hashes could be more than 1 if it has siblings. pretty print
-		for _, hash := range hashes {
+		for _, hash := range hashes { // block can have more than 1 uncles
 			blockInfo := ""
 			replacedBlock, found := blockByHash[hash]
 			if found {
@@ -295,8 +249,6 @@ func reorgAlert(latestBlock *types.Block, depth uint64, newChainSegment []*types
 			}
 			fmt.Printf("- %d %s %s\n", blockNumber, hash.String(), blockInfo)
 		}
-
-		// Here is a good place to save data from transactions that are children of the uncle and not included in the node DB
 	}
 
 	fmt.Println("New chain after reorg:")
@@ -308,10 +260,9 @@ func reorgAlert(latestBlock *types.Block, depth uint64, newChainSegment []*types
 	earnings, _ = earningsService.GetBlockCoinbaseEarnings(latestBlock)
 	fmt.Printf("- %d %s / %3d tx, miner %s, earnings: %s ETH\n", latestBlock.Number(), latestBlock.Hash(), len(latestBlock.Transactions()), latestBlock.Coinbase(), BalanceToEthStr(earnings))
 	fmt.Println("")
-	// Note: add custom notification logic here
 }
 
-func AddLineToCsv(record []string) {
+func csvAddLine(record []string) {
 	if csvWriter != nil {
 		err := csvWriter.Write(record)
 		csvWriter.Flush()
@@ -321,8 +272,8 @@ func AddLineToCsv(record []string) {
 	}
 }
 
-func writeHeaderToCsv() {
-	AddLineToCsv([]string{
+func csvWriteHeader() {
+	csvAddLine([]string{
 		"block number",
 		"block hash",
 		"parent hash",
@@ -341,7 +292,7 @@ func writeHeaderToCsv() {
 	})
 }
 
-func writeToCsv(latestHeight uint64) {
+func csvWriteBlockInfo(latestHeight uint64) {
 	if latestHeightWrittenToCsv == 0 {
 		latestHeightWrittenToCsv = latestHeight - 1
 		return
@@ -362,7 +313,7 @@ func writeToCsv(latestHeight uint64) {
 					continue
 				}
 
-				AddLineToCsv(blockInfo.ToCsvRecord())
+				csvAddLine(blockInfo.ToCsvRecord())
 			}
 			latestHeightWrittenToCsv = height
 		}
