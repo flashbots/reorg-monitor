@@ -51,7 +51,9 @@ func main() {
 		defer file.Close()
 		csvWriter = csv.NewWriter(file)
 		defer csvWriter.Flush()
-		csvWriteHeader()
+
+		// write CSV header
+		csvAddLine(BlockInfoCsvRecordHeader)
 	}
 
 	silent = *silentPtr
@@ -97,16 +99,20 @@ func main() {
 			}
 
 			// Check block
-			checkBlock(block, client)
+			reorgFound := checkBlock(block, client)
 
 			// Add block to history
-			blockByHash[header.Hash()] = block
-			blockHashesByHeight[header.Number.Uint64()] = append(blockHashesByHeight[header.Number.Uint64()], header.Hash())
+			addBlockToHistory(block)
 
 			// Write to CSV
-			csvWriteBlockInfo(header.Number.Uint64())
+			csvWriteBlockInfo(header.Number.Uint64(), reorgFound)
 		}
 	}
+}
+
+func addBlockToHistory(block *types.Block) {
+	blockByHash[block.Hash()] = block
+	blockHashesByHeight[block.NumberU64()] = append(blockHashesByHeight[block.NumberU64()], block.Hash())
 }
 
 func checkBlock(block *types.Block, client *ethclient.Client) (reorgFound bool) {
@@ -122,11 +128,13 @@ func checkBlock(block *types.Block, client *ethclient.Client) (reorgFound bool) 
 	newBlocks := findNewChain(block.Header(), client)
 	if len(newBlocks) == 0 {
 		log.Println("Possible reorg, but didn't couldn't determine new blocks (probably didn't run long enough to find common ancestor)")
-		return
+		return true
 	}
 
-	// Add new blocks to blockInfoCache
+	// Add new blocks to history and blockInfoCache
 	for _, newBlock := range newBlocks {
+		addBlockToHistory(newBlock)
+
 		earnings, _ := earningsService.GetBlockCoinbaseEarnings(newBlock)
 		blockInfoCache[block.Hash()] = NewBlockInfoFromBlock(block, earnings)
 	}
@@ -192,9 +200,13 @@ func findReplacedBlocks(newBlocks []*types.Block) (depth uint64, replacedBlocks 
 
 	earliestNewBlock := *newBlocks[len(newBlocks)-1]
 	lastCommonBlockHash := earliestNewBlock.ParentHash() // parent of last (earliest) new block
-	lastCommonBlock := blockByHash[lastCommonBlockHash]
-	lastCommonBlockNumber := lastCommonBlock.Header().Number.Uint64()
+	lastCommonBlock, found := blockByHash[lastCommonBlockHash]
+	if !found {
+		log.Printf("findReplacedBlocks error - couldn't find last common block %s\n", lastCommonBlockHash)
+		return 0, replacedBlocks
+	}
 
+	lastCommonBlockNumber := lastCommonBlock.Header().Number.Uint64()
 	blockNumber := lastCommonBlockNumber // iterate forward starting at last common block
 	for {
 		blockNumber += 1
@@ -204,7 +216,7 @@ func findReplacedBlocks(newBlocks []*types.Block) (depth uint64, replacedBlocks 
 		}
 
 		for _, hash := range blockHashesAtHeight {
-			block, _ := blockByHash[hash]
+			block := blockByHash[hash]
 			replacedBlocks = append(replacedBlocks, block)
 		}
 	}
@@ -272,36 +284,22 @@ func csvAddLine(record []string) {
 	}
 }
 
-func csvWriteHeader() {
-	csvAddLine([]string{
-		"block number",
-		"block hash",
-		"parent hash",
-		"block timestamp",
-
-		"difficulty",
-		"num uncles",
-		"num tx",
-
-		"isReorged",
-		"isUncle",
-		"isChild",
-		"reorg depth",
-
-		"coinbase diff",
-	})
-}
-
-func csvWriteBlockInfo(latestHeight uint64) {
+func csvWriteBlockInfo(latestHeight uint64, debug bool) {
 	if latestHeightWrittenToCsv == 0 {
 		latestHeightWrittenToCsv = latestHeight - 1
 		return
 	}
 
 	if latestHeightWrittenToCsv < latestHeight-5 {
+		if debug {
+			fmt.Printf("csvWriteBlockInfo debug: latestHeightWrittenToCsv: %d, latestHeight: %d\n", latestHeightWrittenToCsv, latestHeight)
+		}
 		for height := latestHeightWrittenToCsv + 1; height <= latestHeight-5; height++ {
 			// Get all hashes for this height
 			hashes, found := blockHashesByHeight[height]
+			if debug {
+				fmt.Printf("- height: %d, found: %v, hashes: %v \n", height, found, hashes)
+			}
 			if !found {
 				continue
 			}
@@ -309,6 +307,9 @@ func csvWriteBlockInfo(latestHeight uint64) {
 			// For all blocks at this height, save to CSV
 			for _, hash := range hashes {
 				blockInfo, found := blockInfoCache[hash]
+				if debug {
+					fmt.Printf("-- hash: %s, blockInfo found: %v \n", hash, found)
+				}
 				if !found {
 					continue
 				}

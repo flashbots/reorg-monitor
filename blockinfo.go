@@ -47,3 +47,21 @@ func (b *BlockInfo) ToCsvRecord() []string {
 		BalanceToEthStr(b.CoinbaseDifference),
 	}
 }
+
+var BlockInfoCsvRecordHeader []string = []string{
+	"block number",
+	"block hash",
+	"parent hash",
+	"block timestamp",
+
+	"difficulty",
+	"num uncles",
+	"num tx",
+
+	"isReorged",
+	"isUncle",
+	"isChild",
+	"reorg depth",
+
+	"coinbase diff",
+}
