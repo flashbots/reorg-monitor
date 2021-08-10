@@ -12,13 +12,13 @@ import (
 
 type EarningsService struct {
 	client                   *ethclient.Client
-	MinerEarningsByBlockHash map[common.Hash]*big.Int
+	minerEarningsByBlockHash map[common.Hash]*big.Int
 }
 
 func NewEarningsService(client *ethclient.Client) *EarningsService {
 	return &EarningsService{
 		client:                   client,
-		MinerEarningsByBlockHash: make(map[common.Hash]*big.Int),
+		minerEarningsByBlockHash: make(map[common.Hash]*big.Int),
 	}
 }
 
@@ -59,7 +59,7 @@ func (es *EarningsService) GetBlockCoinbaseEarningsWithoutCache(block *types.Blo
 func (es *EarningsService) GetBlockCoinbaseEarnings(block *types.Block) (*big.Int, error) {
 	var err error
 
-	earnings, found := es.MinerEarningsByBlockHash[block.Hash()]
+	earnings, found := es.minerEarningsByBlockHash[block.Hash()]
 	if found {
 		return earnings, nil
 	}
@@ -69,6 +69,6 @@ func (es *EarningsService) GetBlockCoinbaseEarnings(block *types.Block) (*big.In
 		return nil, err
 	}
 
-	es.MinerEarningsByBlockHash[block.Hash()] = earnings
+	es.minerEarningsByBlockHash[block.Hash()] = earnings
 	return earnings, nil
 }

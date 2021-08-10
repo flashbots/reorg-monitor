@@ -16,7 +16,7 @@ import (
 )
 
 var blockByHash map[common.Hash]*types.Block = make(map[common.Hash]*types.Block) // for looking up known parents, to detect reorgs
-var blockHashesByHeight map[uint64][]common.Hash = make(map[uint64][]common.Hash)
+var blockHashesByHeight map[uint64]map[common.Hash]bool = make(map[uint64]map[common.Hash]bool)
 var earningsService *EarningsService
 
 var silent bool
@@ -99,20 +99,23 @@ func main() {
 			}
 
 			// Check block
-			reorgFound := checkBlock(block, client)
+			checkBlock(block, client)
 
 			// Add block to history
 			addBlockToHistory(block)
 
 			// Write to CSV
-			csvWriteBlockInfo(header.Number.Uint64(), reorgFound)
+			csvWriteBlockInfo(header.Number.Uint64())
 		}
 	}
 }
 
 func addBlockToHistory(block *types.Block) {
 	blockByHash[block.Hash()] = block
-	blockHashesByHeight[block.NumberU64()] = append(blockHashesByHeight[block.NumberU64()], block.Hash())
+	if _, found := blockHashesByHeight[block.NumberU64()]; !found {
+		blockHashesByHeight[block.NumberU64()] = make(map[common.Hash]bool)
+	}
+	blockHashesByHeight[block.NumberU64()][block.Hash()] = true
 }
 
 func checkBlock(block *types.Block, client *ethclient.Client) (reorgFound bool) {
@@ -216,7 +219,7 @@ func findReplacedBlocks(newBlocks []*types.Block) (depth uint64, replacedBlocks 
 			break
 		}
 
-		for _, hash := range blockHashesAtHeight {
+		for hash := range blockHashesAtHeight {
 			block := blockByHash[hash]
 			replacedBlocks = append(replacedBlocks, block)
 		}
@@ -238,31 +241,6 @@ func reorgAlert(latestBlock *types.Block, depth uint64, replacedChainSement []*t
 	fmt.Println("Last common block:")
 	earnings, _ := earningsService.GetBlockCoinbaseEarnings(lastCommonBlock)
 	fmt.Printf("- %d %3s / %3d tx, miner %s, earnings: %s ETH\n", lastCommonBlockNumber, lastCommonBlockHash, len(lastCommonBlock.Transactions()), lastCommonBlock.Coinbase(), BalanceToEthStr(earnings))
-
-	// fmt.Println("Old chain (replaced blocks):")
-	// blockNumber := lastCommonBlockNumber
-	// for {
-	// 	blockNumber += 1
-	// 	hashes, found := blockHashesByHeight[blockNumber]
-	// 	if !found {
-	// 		break
-	// 	}
-
-	// 	for _, hash := range hashes { // block can have more than 1 uncles
-	// 		blockInfo := ""
-	// 		replacedBlock, found := blockByHash[hash]
-	// 		if found {
-	// 			blockInfo += fmt.Sprintf("/ %3d tx, miner %s, ", len(replacedBlock.Transactions()), replacedBlock.Coinbase())
-	// 		}
-
-	// 		earnings, _ := earningsService.GetBlockCoinbaseEarnings(replacedBlock)
-	// 		blockInfo += fmt.Sprintf("earnings: %s ETH", BalanceToEthStr(earnings))
-	// 		if blockNumber == lastCommonBlockNumber+1 {
-	// 			blockInfo += " (now uncle)"
-	// 		}
-	// 		fmt.Printf("- %d %s %s\n", blockNumber, hash.String(), blockInfo)
-	// 	}
-	// }
 
 	fmt.Println("Old chain (replaced blocks):")
 	for _, replacedBlock := range replacedChainSement {
@@ -295,32 +273,23 @@ func csvAddLine(record []string) {
 	}
 }
 
-func csvWriteBlockInfo(latestHeight uint64, debug bool) {
+func csvWriteBlockInfo(latestHeight uint64) {
 	if latestHeightWrittenToCsv == 0 {
 		latestHeightWrittenToCsv = latestHeight - 1
 		return
 	}
 
 	if latestHeightWrittenToCsv < latestHeight-5 {
-		if debug {
-			fmt.Printf("csvWriteBlockInfo debug: latestHeightWrittenToCsv: %d, latestHeight: %d\n", latestHeightWrittenToCsv, latestHeight)
-		}
 		for height := latestHeightWrittenToCsv + 1; height <= latestHeight-5; height++ {
 			// Get all hashes for this height
 			hashes, found := blockHashesByHeight[height]
-			if debug {
-				fmt.Printf("- height: %d, found: %v, hashes: %v \n", height, found, hashes)
-			}
 			if !found {
 				continue
 			}
 
 			// For all blocks at this height, save to CSV
-			for _, hash := range hashes {
+			for hash := range hashes {
 				blockInfo, found := blockInfoCache[hash]
-				if debug {
-					fmt.Printf("-- hash: %s, blockInfo found: %v \n", hash, found)
-				}
 				if !found {
 					continue
 				}
