@@ -236,7 +236,7 @@ func reorgAlert(latestBlock *types.Block, depth uint64, replacedChainSement []*t
 	lastCommonBlockNumber := lastCommonBlock.Header().Number.Uint64()
 
 	fmt.Println("Last common block:")
-	earnings, _ := earningsService.GetBlockCoinbaseEarnings(latestBlock)
+	earnings, _ := earningsService.GetBlockCoinbaseEarnings(lastCommonBlock)
 	fmt.Printf("- %d %3s / %3d tx, miner %s, earnings: %s ETH\n", lastCommonBlockNumber, lastCommonBlockHash, len(lastCommonBlock.Transactions()), lastCommonBlock.Coinbase(), BalanceToEthStr(earnings))
 
 	// fmt.Println("Old chain (replaced blocks):")
