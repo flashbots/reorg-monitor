@@ -34,6 +34,7 @@ func (b *BlockInfo) ToCsvRecord() []string {
 		b.Block.Hash().String(),
 		b.Block.ParentHash().String(),
 		strconv.FormatUint(b.Block.Time(), 10),
+		b.Block.Coinbase().String(),
 
 		b.Block.Difficulty().String(),
 		strconv.Itoa(len(b.Block.Uncles())),
@@ -49,19 +50,20 @@ func (b *BlockInfo) ToCsvRecord() []string {
 }
 
 var BlockInfoCsvRecordHeader []string = []string{
-	"block number",
-	"block hash",
-	"parent hash",
-	"block timestamp",
+	"block_number",
+	"block_hash",
+	"parent_hash",
+	"block_timestamp",
+	"coinbase_address",
 
 	"difficulty",
-	"num uncles",
-	"num tx",
+	"num_uncles",
+	"num_tx",
 
 	"isReorged",
 	"isUncle",
 	"isChild",
-	"reorg depth",
+	"reorg_depth",
 
-	"coinbase diff",
+	"coinbase_diff",
 }
