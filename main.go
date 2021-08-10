@@ -13,11 +13,14 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/metachris/eth-reorg-monitor/database"
 )
 
 var blockByHash map[common.Hash]*types.Block = make(map[common.Hash]*types.Block) // for looking up known parents, to detect reorgs
 var blockHashesByHeight map[uint64]map[common.Hash]bool = make(map[uint64]map[common.Hash]bool)
+
 var earningsService *EarningsService
+var dbService *database.DatabaseService
 
 var silent bool
 var minReorgDepthToNotify uint64
@@ -32,12 +35,25 @@ func main() {
 
 	ethUriPtr := flag.String("eth", os.Getenv("ETH_NODE"), "Geth node URI")
 	silentPtr := flag.Bool("silent", false, "only print alerts, no info about every block")
+	dbPtr := flag.Bool("db", false, "save to database")
 	minReorgDepthPtr := flag.Uint64("mindepth", 1, "minimum reorg depth to notify")
 	csvFilename := flag.String("csv", "", "CSV file for saving blocks")
 	flag.Parse()
 
 	if *ethUriPtr == "" {
 		log.Fatal("Missing eth node uri")
+	}
+
+	if *dbPtr {
+		dbConfig := database.PostgresConfig{
+			User:       "user1",
+			Password:   "password",
+			Host:       "localhost",
+			Name:       "reorg",
+			DisableTLS: true,
+		}
+
+		dbService = database.NewDatabaseService(dbConfig)
 	}
 
 	// Setup the CSV writer
