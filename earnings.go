@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -37,18 +36,16 @@ func (es *EarningsService) GetBlockCoinbaseEarningsWithoutCache(block *types.Blo
 
 	// Iterate over all transactions - add sent value back into earnings, remove received value
 	for _, tx := range block.Transactions() {
-		from, err := types.Sender(types.LatestSignerForChainID(tx.ChainId()), tx)
-		if err != nil {
-			fmt.Println("getsender error", err, tx.Hash())
-			continue
-		}
+		from, fromErr := types.Sender(types.LatestSignerForChainID(tx.ChainId()), tx)
+		to := tx.To()
+		txIsFromCoinbase := fromErr == nil && from == block.Coinbase()
+		txIsToCoinbase := to != nil && *to == block.Coinbase()
 
-		if from == block.Coinbase() {
+		if txIsFromCoinbase {
 			earnings = new(big.Int).Add(earnings, tx.Value())
 		}
 
-		to := tx.To()
-		if to != nil && *to == block.Coinbase() {
+		if txIsToCoinbase {
 			earnings = new(big.Int).Sub(earnings, tx.Value())
 		}
 	}
