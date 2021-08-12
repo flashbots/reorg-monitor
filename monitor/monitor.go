@@ -153,6 +153,7 @@ type Reorg struct {
 	StartBlockHeight uint64
 	EndBlockHeight   uint64
 	Depth            uint64
+	NumChains        uint64
 }
 
 func (ro *ReorgMonitor) CheckForReorgs() (reorgs map[uint64]*Reorg) {
@@ -170,7 +171,10 @@ func (ro *ReorgMonitor) CheckForReorgs() (reorgs map[uint64]*Reorg) {
 
 			// detect reorg start
 			if currentReorgStartHeight == 0 {
-				reorgs[height] = &Reorg{StartBlockHeight: height}
+				reorgs[height] = &Reorg{
+					StartBlockHeight: height,
+					NumChains:        uint64(numBlocksAtHeight),
+				}
 				currentReorgStartHeight = height
 			}
 

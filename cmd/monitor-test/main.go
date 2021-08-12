@@ -85,8 +85,8 @@ func TestBlockWithUncles() {
 	reorgs := mon.CheckForReorgs()
 	fmt.Println("\n---\n ")
 
-	for i, reorg := range reorgs {
-		fmt.Printf("reorg #%d: started at height %d, depth: %d, end: %d\n", i+1, reorg.StartBlockHeight, reorg.Depth, reorg.EndBlockHeight)
+	for _, reorg := range reorgs {
+		fmt.Printf("reorg with depth %d (%d chains): started at height %d - %d\n", reorg.Depth, reorg.NumChains, reorg.StartBlockHeight, reorg.EndBlockHeight)
 	}
 }
 
