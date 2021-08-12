@@ -54,6 +54,7 @@ func (ro *ReorgMonitor) DebugPrintln(msg string) {
 // AddBlock adds a block to history if it hasn't been seen before. Also will query and download
 // the chain of parents if not found
 func (ro *ReorgMonitor) AddBlock(block *types.Block) error {
+	ro.DebugPrintln(fmt.Sprintf("AddBlock %d %s - %s", block.NumberU64(), block.Hash(), ro.String()))
 	_, knownBlock := ro.NodeByHash[block.Hash()]
 	if !knownBlock {
 		// Add for access by hash
@@ -61,7 +62,7 @@ func (ro *ReorgMonitor) AddBlock(block *types.Block) error {
 
 		// Add to array of blocks by height
 		if _, found := ro.NodesByHeight[block.NumberU64()]; !found {
-			ro.NodesByHeight[block.NumberU64()] = make([]*types.Block, 1)
+			ro.NodesByHeight[block.NumberU64()] = make([]*types.Block, 0)
 		}
 		ro.NodesByHeight[block.NumberU64()] = append(ro.NodesByHeight[block.NumberU64()], block)
 	}
@@ -74,22 +75,45 @@ func (ro *ReorgMonitor) AddBlock(block *types.Block) error {
 		ro.LatestBlockNumber = block.NumberU64()
 	}
 
-	ro.DebugPrintln(fmt.Sprintf("Added block %d %s. %s", block.NumberU64(), block.Hash(), ro.String()))
+	if block.NumberU64() > ro.EarliestBlockNumber { // check backhistory only if we are past the earliest block
+		for _, uncleHeader := range block.Uncles() {
+			fmt.Printf("- block %d has uncle: %s\n", block.NumberU64(), uncleHeader.Hash())
+			_, err := ro.EnsureBlock(uncleHeader.Hash())
+			if err != nil {
+				return errors.Wrap(err, "get uncle error")
+			}
+		}
 
-	// Check and potentially download parent (back until start of monitoring)
-	if block.NumberU64() > ro.EarliestBlockNumber {
+		// Check and potentially download parent (back until start of monitoring)
 		_, found := ro.NodeByHash[block.ParentHash()]
 		if !found {
-			ro.DebugPrintln(fmt.Sprintf("- Parent hash not found (%s)", block.ParentHash()))
-			block, err := ro.client.BlockByHash(context.Background(), block.ParentHash())
+			fmt.Printf("- Parent hash of %d %s not found. Downloading %s\n", block.NumberU64(), block.Hash(), block.ParentHash())
+			_, err := ro.EnsureBlock(block.ParentHash())
 			if err != nil {
 				return errors.Wrap(err, "get unknown parent error")
 			}
-			ro.AddBlock(block)
 		}
 	}
 
+	ro.DebugPrintln(fmt.Sprintf("- added block %d %s", block.NumberU64(), block.Hash()))
 	return nil
+}
+
+func (ro *ReorgMonitor) EnsureBlock(blockHash common.Hash) (*types.Block, error) {
+	// Check and potentially download block
+	block, found := ro.NodeByHash[blockHash]
+	if found {
+		return block, nil
+	}
+
+	fmt.Printf("- Block with hash %s not found, downloading...\n", blockHash)
+	block, err := ro.client.BlockByHash(context.Background(), blockHash)
+	if err != nil {
+		return nil, errors.Wrap(err, "get unknown parent error")
+	}
+
+	ro.AddBlock(block)
+	return block, nil
 }
 
 func (ro *ReorgMonitor) String() string {
@@ -123,4 +147,46 @@ func (ro *ReorgMonitor) SubscribeAndStart() string {
 			}
 		}
 	}
+}
+
+type Reorg struct {
+	StartBlockHeight uint64
+	EndBlockHeight   uint64
+	Depth            uint64
+}
+
+func (ro *ReorgMonitor) CheckForReorgs() (reorgs map[uint64]*Reorg) {
+	ro.DebugPrintln("CheckForReorgs")
+	reorgs = make(map[uint64]*Reorg)
+
+	var currentReorgStartHeight uint64
+	var currentReorgEndHeight uint64
+	// var currentReorgHeight uint64
+
+	for height := ro.EarliestBlockNumber; height <= ro.LatestBlockNumber; height++ {
+		numBlocksAtHeight := len(ro.NodesByHeight[height])
+		if numBlocksAtHeight > 1 {
+			fmt.Printf("- sibling blocks at %d: %v\n", height, ro.NodesByHeight[height])
+
+			// detect reorg start
+			if currentReorgStartHeight == 0 {
+				reorgs[height] = &Reorg{StartBlockHeight: height}
+				currentReorgStartHeight = height
+			}
+
+			reorgs[height].Depth += 1
+			currentReorgEndHeight = height
+
+		} else if numBlocksAtHeight == 0 {
+			fmt.Printf("- no block at height %d found\n", height)
+		} else {
+			// 1 block, end of reorg
+			if currentReorgStartHeight != 0 {
+				reorgs[currentReorgStartHeight].EndBlockHeight = currentReorgEndHeight
+				currentReorgStartHeight = 0
+			}
+		}
+	}
+
+	return reorgs
 }
