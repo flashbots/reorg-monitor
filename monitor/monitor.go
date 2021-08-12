@@ -12,16 +12,48 @@ import (
 	"github.com/pkg/errors"
 )
 
-// type Node struct {
-// 	Block    *types.Block
-// 	Parent   *Node
-// 	Siblings []*Node
+// type ChainSegment struct {
+// 	FirstBlock *types.Block
+// 	LastBlock  *types.Block
+// 	Blocks     map[common.Hash]*types.Block
+// 	// Parent         *types.Block
+// 	// Children       []*types.Block
 // }
 
-// func NewNode
-// type ChainSegment struct {
-// 	Nodes map[common.Hash]*Node
+// func NewChainSegment(firstBlock *types.Block) *ChainSegment {
+// 	segment := &ChainSegment{
+// 		FirstBlock: firstBlock,
+// 		LastBlock:  firstBlock,
+// 		Blocks:     make(map[common.Hash]*types.Block),
+// 	}
+// 	segment.Blocks[firstBlock.Hash()] = firstBlock
+// 	return segment
 // }
+
+// func (segment *ChainSegment) AddBlock(block *types.Block) error {
+// 	if block.ParentHash() != segment.LastBlock.Hash() {
+// 		return fmt.Errorf("ChainSegment.AddBlock: block has different parent (%s) than last block in this segment (%s)", block.ParentHash(), segment.LastBlock.Hash())
+// 	}
+// 	segment.Blocks[block.Hash()] = block
+// 	segment.LastBlock = block
+// 	return nil
+// }
+
+type Reorg struct {
+	StartBlockHeight uint64
+	EndBlockHeight   uint64
+	Depth            uint64
+	NumChains        uint64 // needs better detection of double-reorgs
+
+	BlocksInvolved map[common.Hash]*types.Block
+	// Segments []*ChainSegment
+}
+
+func NewReorg() *Reorg {
+	return &Reorg{
+		BlocksInvolved: make(map[common.Hash]*types.Block),
+	}
+}
 
 type ReorgMonitor struct { // monitor one node
 	client   *ethclient.Client
@@ -149,36 +181,35 @@ func (ro *ReorgMonitor) SubscribeAndStart() string {
 	}
 }
 
-type Reorg struct {
-	StartBlockHeight uint64
-	EndBlockHeight   uint64
-	Depth            uint64
-	NumChains        uint64
-}
-
-func (ro *ReorgMonitor) CheckForReorgs() (reorgs map[uint64]*Reorg) {
-	ro.DebugPrintln("CheckForReorgs")
+func (ro *ReorgMonitor) CheckForReorgs() (reorgs map[uint64]*Reorg, isOngoingReorg bool) {
+	// ro.DebugPrintln("CheckForReorgs")
 	reorgs = make(map[uint64]*Reorg)
 
 	var currentReorgStartHeight uint64
 	var currentReorgEndHeight uint64
-	// var currentReorgHeight uint64
 
 	for height := ro.EarliestBlockNumber; height <= ro.LatestBlockNumber; height++ {
-		numBlocksAtHeight := len(ro.NodesByHeight[height])
+		// fmt.Println("check", height)
+		numBlocksAtHeight := uint64(len(ro.NodesByHeight[height]))
 		if numBlocksAtHeight > 1 {
 			fmt.Printf("- sibling blocks at %d: %v\n", height, ro.NodesByHeight[height])
 
 			// detect reorg start
 			if currentReorgStartHeight == 0 {
-				reorgs[height] = &Reorg{
-					StartBlockHeight: height,
-					NumChains:        uint64(numBlocksAtHeight),
-				}
 				currentReorgStartHeight = height
+
+				reorgs[height] = NewReorg()
+				reorgs[height].StartBlockHeight = height
+				reorgs[height].NumChains = numBlocksAtHeight
 			}
 
-			reorgs[height].Depth += 1
+			// Add all blocks at this height to it's own segment
+			for _, block := range ro.NodesByHeight[height] {
+				reorgs[currentReorgStartHeight].BlocksInvolved[block.Hash()] = block
+			}
+
+			// Increase depth
+			reorgs[currentReorgStartHeight].Depth += 1
 			currentReorgEndHeight = height
 
 		} else if numBlocksAtHeight == 0 {
@@ -192,5 +223,6 @@ func (ro *ReorgMonitor) CheckForReorgs() (reorgs map[uint64]*Reorg) {
 		}
 	}
 
-	return reorgs
+	isOngoingReorg = currentReorgStartHeight != 0
+	return reorgs, isOngoingReorg
 }
