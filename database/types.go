@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS blocks_with_earnings (
     ReorgDepth integer NOT NULL,
 
     CoinbaseDiffWei  NUMERIC(48, 0) NOT NULL,
-    CoinbaseDiffEth  float NOT NULL
+    CoinbaseDiffEth  DOUBLE PRECISION NOT NULL
 );
 `
 
