@@ -15,6 +15,7 @@ import (
 )
 
 var Client *ethclient.Client
+var ethNodeUri string
 var Monitor *monitor.ReorgMonitor
 
 func ConnectClient(uri string) error {
@@ -30,13 +31,13 @@ func ConnectClient(uri string) error {
 }
 
 func ResetMon(nick string) {
-	Monitor = monitor.NewReorgMonitor(Client, nick, true)
+	Monitor = monitor.NewReorgMonitor(ethNodeUri, nick, true)
 	fmt.Println(Monitor.String())
 }
 
 func AddBlockAndPrintNewline(blocks ...*types.Block) {
 	for _, block := range blocks {
-		Monitor.AddBlock(block)
+		Monitor.AddBlock(block, "")
 		fmt.Println("")
 	}
 }

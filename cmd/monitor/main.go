@@ -2,14 +2,14 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"os"
 
 	"github.com/metachris/eth-reorg-monitor/monitor"
 )
 
-var reorgs map[string]*monitor.Reorg = make(map[string]*monitor.Reorg)
+var Reorgs map[string]*monitor.Reorg = make(map[string]*monitor.Reorg)
+var ColorGreen = "\033[1;32m%s\033[0m"
 
 func main() {
 	log.SetOutput(os.Stdout)
@@ -36,14 +36,15 @@ func main() {
 }
 
 func handleReorg(reorg *monitor.Reorg) {
-	_, found := reorgs[reorg.Id()]
+	_, found := Reorgs[reorg.Id()]
 	if found {
 		return
 	}
 
 	// new reorg
-	reorgs[reorg.Id()] = reorg
-	fmt.Println("xx new reorg:", reorg)
+	Reorgs[reorg.Id()] = reorg
+
+	log.Printf(ColorGreen, reorg)
 
 	// Todo:
 	// - Get coinbase diff

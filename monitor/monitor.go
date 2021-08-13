@@ -110,8 +110,10 @@ func (mon *ReorgMonitor) DebugPrintln(a ...interface{}) {
 
 // AddBlock adds a block to history if it hasn't been seen before. Also will query and download
 // the chain of parents if not found
-func (mon *ReorgMonitor) AddBlock(block *types.Block) error {
-	mon.DebugPrintln(fmt.Sprintf("AddBlock %d %s - %s", block.NumberU64(), block.Hash(), mon.String()))
+func (mon *ReorgMonitor) AddBlock(block *types.Block, info string) error {
+	blockInfo := fmt.Sprintf("[%s] Add%s \t %s \t %s", mon.nickname, reorgutils.SprintBlock(block), info, mon)
+	fmt.Println(blockInfo)
+
 	_, knownBlock := mon.BlockByHash[block.Hash()]
 	if !knownBlock {
 		// Add for access by hash
@@ -136,8 +138,8 @@ func (mon *ReorgMonitor) AddBlock(block *types.Block) error {
 		// Check and potentially download parent (back until start of monitoring)
 		_, found := mon.BlockByHash[block.ParentHash()]
 		if !found {
-			fmt.Printf("- Parent of %d %s not found (%s), downloading...\n", block.NumberU64(), block.Hash(), block.ParentHash())
-			_, err := mon.EnsureBlock(block.ParentHash())
+			mon.DebugPrintln(fmt.Sprintf("- parent of %d %s not found (%s), downloading...\n", block.NumberU64(), block.Hash(), block.ParentHash()))
+			_, _, err := mon.EnsureBlock(block.ParentHash(), "get-parent")
 			if err != nil {
 				return errors.Wrap(err, "get unknown parent error")
 			}
@@ -145,12 +147,14 @@ func (mon *ReorgMonitor) AddBlock(block *types.Block) error {
 
 		// Check uncles
 		for _, uncleHeader := range block.Uncles() {
-			fmt.Printf("- block %d %s has uncle: %s\n", block.NumberU64(), block.Hash(), uncleHeader.Hash())
-			_, err := mon.EnsureBlock(uncleHeader.Hash())
+			mon.DebugPrintln(fmt.Sprintf("- block %d %s has uncle: %s\n", block.NumberU64(), block.Hash(), uncleHeader.Hash()))
+			_, existed, err := mon.EnsureBlock(uncleHeader.Hash(), "get-uncle")
 			if err != nil {
 				return errors.Wrap(err, "get uncle error")
 			}
-			mon.BlockViaUncleInfo[uncleHeader.Hash()] = true
+			if !existed {
+				mon.BlockViaUncleInfo[uncleHeader.Hash()] = true
+			}
 		}
 	}
 
@@ -158,21 +162,22 @@ func (mon *ReorgMonitor) AddBlock(block *types.Block) error {
 	return nil
 }
 
-func (mon *ReorgMonitor) EnsureBlock(blockHash common.Hash) (*types.Block, error) {
+func (mon *ReorgMonitor) EnsureBlock(blockHash common.Hash, info string) (block *types.Block, alreadyExisted bool, err error) {
 	// Check and potentially download block
-	block, found := mon.BlockByHash[blockHash]
+	var found bool
+	block, found = mon.BlockByHash[blockHash]
 	if found {
-		return block, nil
+		return block, true, nil
 	}
 
-	fmt.Printf("- Block with hash %s not found, downloading...\n", blockHash)
-	block, err := mon.client.BlockByHash(context.Background(), blockHash)
+	mon.DebugPrintln(fmt.Sprintf("- block with hash %s not found, downloading...\n", blockHash))
+	block, err = mon.client.BlockByHash(context.Background(), blockHash)
 	if err != nil {
-		return nil, errors.Wrap(err, "get unknown parent error")
+		return nil, false, errors.Wrap(err, "EnsureBlock error")
 	}
 
-	mon.AddBlock(block)
-	return block, nil
+	mon.AddBlock(block, info)
+	return block, false, nil
 }
 
 func (mon *ReorgMonitor) SubscribeAndStart(reorgChan chan<- *Reorg) string {
@@ -193,11 +198,8 @@ func (mon *ReorgMonitor) SubscribeAndStart(reorgChan chan<- *Reorg) string {
 				continue
 			}
 
-			blockInfo := reorgutils.SprintBlock(block) + " \t " + mon.String()
-			log.Println(blockInfo)
-
 			// Add the block
-			err = mon.AddBlock(block)
+			err = mon.AddBlock(block, "subscription")
 			if err != nil {
 				log.Println("error", err)
 				continue
@@ -209,7 +211,7 @@ func (mon *ReorgMonitor) SubscribeAndStart(reorgChan chan<- *Reorg) string {
 				reorgId := reorg.Id()
 				_, found := mon.Reorgs[reorgId]
 				if !found {
-					log.Println("New completed reorg found:", reorg.String())
+					// log.Println("New completed reorg found:", reorg.String())
 					mon.Reorgs[reorgId] = reorg
 					reorgChan <- reorg
 				}
