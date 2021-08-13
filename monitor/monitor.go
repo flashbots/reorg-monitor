@@ -44,6 +44,8 @@ type Reorg struct {
 	EndBlockHeight   uint64
 	Depth            uint64
 	NumChains        uint64 // needs better detection of double-reorgs
+	IsCompleted      bool
+	SeenLive         bool
 
 	BlocksInvolved map[common.Hash]*types.Block
 	// Segments []*ChainSegment
@@ -55,107 +57,122 @@ func NewReorg() *Reorg {
 	}
 }
 
+func (r *Reorg) Id() string {
+	return fmt.Sprintf("%d_%d_d%d_b%d", r.StartBlockHeight, r.EndBlockHeight, r.Depth, len(r.BlocksInvolved))
+}
+
+func (r *Reorg) String() string {
+	return fmt.Sprintf("Reorg %s: live: %v, blocks %d - %d, depth: %d, numBlocks: %d", r.Id(), r.SeenLive, r.StartBlockHeight, r.EndBlockHeight, r.Depth, len(r.BlocksInvolved))
+}
+
 type ReorgMonitor struct { // monitor one node
 	client   *ethclient.Client
 	debug    bool
 	nickname string
 
-	NodeByHash    map[common.Hash]*types.Block
-	NodesByHeight map[uint64][]*types.Block
+	BlockByHash    map[common.Hash]*types.Block
+	BlocksByHeight map[uint64][]*types.Block
 
 	EarliestBlockNumber uint64
 	LatestBlockNumber   uint64
+
+	Reorgs            map[string]*Reorg
+	BlockViaUncleInfo map[common.Hash]bool // true if that block was not seen live but rather seen through uncle information of child block. Used to know if we saw a reorg live
 }
 
 func NewReorgMonitor(client *ethclient.Client, nickname string, debug bool) *ReorgMonitor {
 	return &ReorgMonitor{
-		client:        client,
-		debug:         debug,
-		nickname:      nickname,
-		NodeByHash:    make(map[common.Hash]*types.Block),
-		NodesByHeight: make(map[uint64][]*types.Block),
+		client:            client,
+		debug:             debug,
+		nickname:          nickname,
+		BlockByHash:       make(map[common.Hash]*types.Block),
+		BlocksByHeight:    make(map[uint64][]*types.Block),
+		Reorgs:            make(map[string]*Reorg),
+		BlockViaUncleInfo: make(map[common.Hash]bool),
 	}
 }
 
-func (ro *ReorgMonitor) DebugPrintln(msg string) {
-	if ro.debug {
-		fmt.Println(msg)
+func (mon *ReorgMonitor) DebugPrintln(a ...interface{}) {
+	if mon.debug {
+		fmt.Println(a...)
 	}
 }
 
 // AddBlock adds a block to history if it hasn't been seen before. Also will query and download
 // the chain of parents if not found
-func (ro *ReorgMonitor) AddBlock(block *types.Block) error {
-	ro.DebugPrintln(fmt.Sprintf("AddBlock %d %s - %s", block.NumberU64(), block.Hash(), ro.String()))
-	_, knownBlock := ro.NodeByHash[block.Hash()]
+func (mon *ReorgMonitor) AddBlock(block *types.Block) error {
+	mon.DebugPrintln(fmt.Sprintf("AddBlock %d %s - %s", block.NumberU64(), block.Hash(), mon.String()))
+	_, knownBlock := mon.BlockByHash[block.Hash()]
 	if !knownBlock {
 		// Add for access by hash
-		ro.NodeByHash[block.Hash()] = block
+		mon.BlockByHash[block.Hash()] = block
 
 		// Add to array of blocks by height
-		if _, found := ro.NodesByHeight[block.NumberU64()]; !found {
-			ro.NodesByHeight[block.NumberU64()] = make([]*types.Block, 0)
+		if _, found := mon.BlocksByHeight[block.NumberU64()]; !found {
+			mon.BlocksByHeight[block.NumberU64()] = make([]*types.Block, 0)
 		}
-		ro.NodesByHeight[block.NumberU64()] = append(ro.NodesByHeight[block.NumberU64()], block)
+		mon.BlocksByHeight[block.NumberU64()] = append(mon.BlocksByHeight[block.NumberU64()], block)
 	}
 
-	if ro.EarliestBlockNumber == 0 {
-		ro.EarliestBlockNumber = block.NumberU64()
+	if mon.EarliestBlockNumber == 0 {
+		mon.EarliestBlockNumber = block.NumberU64()
 	}
 
-	if ro.LatestBlockNumber < block.NumberU64() {
-		ro.LatestBlockNumber = block.NumberU64()
+	if mon.LatestBlockNumber < block.NumberU64() {
+		mon.LatestBlockNumber = block.NumberU64()
 	}
 
-	if block.NumberU64() > ro.EarliestBlockNumber { // check backhistory only if we are past the earliest block
-		for _, uncleHeader := range block.Uncles() {
-			fmt.Printf("- block %d has uncle: %s\n", block.NumberU64(), uncleHeader.Hash())
-			_, err := ro.EnsureBlock(uncleHeader.Hash())
-			if err != nil {
-				return errors.Wrap(err, "get uncle error")
-			}
-		}
-
+	if block.NumberU64() > mon.EarliestBlockNumber { // check backhistory only if we are past the earliest block
 		// Check and potentially download parent (back until start of monitoring)
-		_, found := ro.NodeByHash[block.ParentHash()]
+		_, found := mon.BlockByHash[block.ParentHash()]
 		if !found {
-			fmt.Printf("- Parent hash of %d %s not found. Downloading %s\n", block.NumberU64(), block.Hash(), block.ParentHash())
-			_, err := ro.EnsureBlock(block.ParentHash())
+			fmt.Printf("- Parent of %d %s not found (%s), downloading...\n", block.NumberU64(), block.Hash(), block.ParentHash())
+			_, err := mon.EnsureBlock(block.ParentHash())
 			if err != nil {
 				return errors.Wrap(err, "get unknown parent error")
 			}
 		}
+
+		// Check uncles
+		for _, uncleHeader := range block.Uncles() {
+			fmt.Printf("- block %d has uncle: %s\n", block.NumberU64(), uncleHeader.Hash())
+			_, err := mon.EnsureBlock(uncleHeader.Hash())
+			if err != nil {
+				return errors.Wrap(err, "get uncle error")
+			}
+			mon.BlockViaUncleInfo[uncleHeader.Hash()] = true
+		}
 	}
 
-	ro.DebugPrintln(fmt.Sprintf("- added block %d %s", block.NumberU64(), block.Hash()))
+	// ro.DebugPrintln(fmt.Sprintf("- added block %d %s", block.NumberU64(), block.Hash()))
 	return nil
 }
 
-func (ro *ReorgMonitor) EnsureBlock(blockHash common.Hash) (*types.Block, error) {
+func (mon *ReorgMonitor) EnsureBlock(blockHash common.Hash) (*types.Block, error) {
 	// Check and potentially download block
-	block, found := ro.NodeByHash[blockHash]
+	block, found := mon.BlockByHash[blockHash]
 	if found {
 		return block, nil
 	}
 
 	fmt.Printf("- Block with hash %s not found, downloading...\n", blockHash)
-	block, err := ro.client.BlockByHash(context.Background(), blockHash)
+	block, err := mon.client.BlockByHash(context.Background(), blockHash)
 	if err != nil {
 		return nil, errors.Wrap(err, "get unknown parent error")
 	}
 
-	ro.AddBlock(block)
+	mon.AddBlock(block)
 	return block, nil
 }
 
-func (ro *ReorgMonitor) String() string {
-	return fmt.Sprintf("ReorgMonitor[%s]: %d .. %d - %d blocks", ro.nickname, ro.EarliestBlockNumber, ro.LatestBlockNumber, len(ro.NodeByHash))
+func (mon *ReorgMonitor) String() string {
+	return fmt.Sprintf("ReorgMonitor[%s]: %d .. %d - %d blocks", mon.nickname, mon.EarliestBlockNumber, mon.LatestBlockNumber, len(mon.BlockByHash))
 }
 
-func (ro *ReorgMonitor) SubscribeAndStart() string {
+func (mon *ReorgMonitor) SubscribeAndStart() string {
 	// Subscribe to new blocks
 	headers := make(chan *types.Header)
-	sub, err := ro.client.SubscribeNewHead(context.Background(), headers)
+	sub, err := mon.client.SubscribeNewHead(context.Background(), headers)
 	reorgutils.Perror(err)
 
 	for {
@@ -164,7 +181,7 @@ func (ro *ReorgMonitor) SubscribeAndStart() string {
 			log.Fatal(err)
 		case header := <-headers:
 			// Fetch full block information
-			block, err := ro.client.BlockByHash(context.Background(), header.Hash())
+			block, err := mon.client.BlockByHash(context.Background(), header.Hash())
 			if err != nil {
 				log.Println("error", err)
 				continue
@@ -172,27 +189,44 @@ func (ro *ReorgMonitor) SubscribeAndStart() string {
 
 			reorgutils.PrintBlock(block)
 
-			err = ro.AddBlock(block)
+			// Add a block
+			err = mon.AddBlock(block)
 			if err != nil {
 				log.Println("error", err)
 				continue
+			}
+
+			// Check for reorgs
+			completedReorgs := mon.CheckForCompletedReorgs(100)
+			for _, reorg := range completedReorgs {
+				reorgId := reorg.Id()
+				_, found := mon.Reorgs[reorgId]
+				if !found {
+					log.Println("New completed reorg found:", reorg.String())
+					mon.Reorgs[reorgId] = reorg
+					log.Println(mon.String())
+				}
 			}
 		}
 	}
 }
 
-func (ro *ReorgMonitor) CheckForReorgs() (reorgs map[uint64]*Reorg, isOngoingReorg bool) {
-	// ro.DebugPrintln("CheckForReorgs")
+func (mon *ReorgMonitor) CheckForReorgs(maxBlocks uint64) (reorgs map[uint64]*Reorg, isOngoingReorg bool, lastReorgEndHeight uint64) {
+	// ro.DebugPrintln("c")
 	reorgs = make(map[uint64]*Reorg)
 
 	var currentReorgStartHeight uint64
 	var currentReorgEndHeight uint64
 
-	for height := ro.EarliestBlockNumber; height <= ro.LatestBlockNumber; height++ {
-		// fmt.Println("check", height)
-		numBlocksAtHeight := uint64(len(ro.NodesByHeight[height]))
+	startBlockNumber := mon.EarliestBlockNumber
+	if maxBlocks > 0 && mon.LatestBlockNumber-maxBlocks > mon.EarliestBlockNumber {
+		startBlockNumber = mon.LatestBlockNumber - maxBlocks
+	}
+	for height := startBlockNumber; height <= mon.LatestBlockNumber; height++ {
+		mon.DebugPrintln("CheckForReorgs at height", height)
+		numBlocksAtHeight := uint64(len(mon.BlocksByHeight[height]))
 		if numBlocksAtHeight > 1 {
-			fmt.Printf("- sibling blocks at %d: %v\n", height, ro.NodesByHeight[height])
+			// fmt.Printf("- sibling blocks at %d: %v\n", height, ro.NodesByHeight[height])
 
 			// detect reorg start
 			if currentReorgStartHeight == 0 {
@@ -201,10 +235,18 @@ func (ro *ReorgMonitor) CheckForReorgs() (reorgs map[uint64]*Reorg, isOngoingReo
 				reorgs[height] = NewReorg()
 				reorgs[height].StartBlockHeight = height
 				reorgs[height].NumChains = numBlocksAtHeight
+
+				// Was seen live if none of the siblings was detected through uncle unformation of child
+				reorgs[height].SeenLive = true
+				for _, block := range mon.BlocksByHeight[height] {
+					if mon.BlockViaUncleInfo[block.Hash()] {
+						reorgs[height].SeenLive = false
+					}
+				}
 			}
 
 			// Add all blocks at this height to it's own segment
-			for _, block := range ro.NodesByHeight[height] {
+			for _, block := range mon.BlocksByHeight[height] {
 				reorgs[currentReorgStartHeight].BlocksInvolved[block.Hash()] = block
 			}
 
@@ -213,10 +255,11 @@ func (ro *ReorgMonitor) CheckForReorgs() (reorgs map[uint64]*Reorg, isOngoingReo
 			currentReorgEndHeight = height
 
 		} else if numBlocksAtHeight == 0 {
-			fmt.Printf("- no block at height %d found\n", height)
+			fmt.Printf("CheckForReorgs: no block at height %d found\n", height)
 		} else {
 			// 1 block, end of reorg
 			if currentReorgStartHeight != 0 {
+				reorgs[currentReorgStartHeight].IsCompleted = true
 				reorgs[currentReorgStartHeight].EndBlockHeight = currentReorgEndHeight
 				currentReorgStartHeight = 0
 			}
@@ -224,5 +267,16 @@ func (ro *ReorgMonitor) CheckForReorgs() (reorgs map[uint64]*Reorg, isOngoingReo
 	}
 
 	isOngoingReorg = currentReorgStartHeight != 0
-	return reorgs, isOngoingReorg
+	return reorgs, isOngoingReorg, currentReorgEndHeight
+}
+
+func (mon *ReorgMonitor) CheckForCompletedReorgs(maxBlocks uint64) (reorgs []*Reorg) {
+	reorgs = make([]*Reorg, 0)
+	_reorgs, _, _ := mon.CheckForReorgs(maxBlocks)
+	for _, _reorg := range _reorgs {
+		if _reorg.IsCompleted {
+			reorgs = append(reorgs, _reorg)
+		}
+	}
+	return reorgs
 }

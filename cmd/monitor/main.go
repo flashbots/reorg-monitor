@@ -15,6 +15,7 @@ func main() {
 	log.SetOutput(os.Stdout)
 
 	ethUriPtr := flag.String("eth", os.Getenv("ETH_NODE"), "Geth node URI")
+	debugPtr := flag.Bool("debug", false, "print debug information")
 	flag.Parse()
 
 	if *ethUriPtr == "" {
@@ -28,7 +29,7 @@ func main() {
 	fmt.Printf(" ok\n")
 
 	// Monitor
-	mon := monitor.NewReorgMonitor(client, "eth1", true)
+	mon := monitor.NewReorgMonitor(client, "eth1", *debugPtr)
 	fmt.Println(mon.String())
 	mon.SubscribeAndStart()
 }
