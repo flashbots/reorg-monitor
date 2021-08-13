@@ -6,10 +6,10 @@ import (
 	"log"
 	"os"
 
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/metachris/eth-reorg-monitor/monitor"
-	"github.com/metachris/eth-reorg-monitor/reorgutils"
 )
+
+var reorgs map[string]*monitor.Reorg = make(map[string]*monitor.Reorg)
 
 func main() {
 	log.SetOutput(os.Stdout)
@@ -22,14 +22,30 @@ func main() {
 		log.Fatal("Missing eth node uri")
 	}
 
-	// Connect to geth node
-	fmt.Printf("Connecting to %s...", *ethUriPtr)
-	client, err := ethclient.Dial(*ethUriPtr)
-	reorgutils.Perror(err)
-	fmt.Printf(" ok\n")
+	// Handle reorgs from many monitors
+	reorgChan := make(chan *monitor.Reorg)
+	go func() {
+		for reorg := range reorgChan {
+			handleReorg(reorg)
+		}
+	}()
 
-	// Monitor
-	mon := monitor.NewReorgMonitor(client, "eth1", *debugPtr)
-	fmt.Println(mon.String())
-	mon.SubscribeAndStart()
+	// Start a monitor
+	mon := monitor.NewReorgMonitor(*ethUriPtr, "eth1", *debugPtr)
+	mon.SubscribeAndStart(reorgChan)
+}
+
+func handleReorg(reorg *monitor.Reorg) {
+	_, found := reorgs[reorg.Id()]
+	if found {
+		return
+	}
+
+	// new reorg
+	reorgs[reorg.Id()] = reorg
+	fmt.Println("xx new reorg:", reorg)
+
+	// Todo:
+	// - Get coinbase diff
+	// - Save to database
 }

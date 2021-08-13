@@ -1,7 +1,7 @@
 package reorgutils
 
 import (
-	"log"
+	"fmt"
 	"math"
 	"math/big"
 	"os"
@@ -36,7 +36,7 @@ func BalanceToEthStr(balance *big.Int) string {
 	return BalanceToEth(balance).Text('f', 4)
 }
 
-func PrintBlock(block *types.Block) {
+func SprintBlock(block *types.Block) string {
 	t := time.Unix(int64(block.Time()), 0).UTC()
-	log.Printf("Block %s %s \t %s \t tx: %3d, uncles: %d \n", block.Number(), block.Hash(), t, len(block.Transactions()), len(block.Uncles()))
+	return fmt.Sprintf("Block %s %s \t %s \t tx: %3d, uncles: %d", block.Number(), block.Hash(), t, len(block.Transactions()), len(block.Uncles()))
 }

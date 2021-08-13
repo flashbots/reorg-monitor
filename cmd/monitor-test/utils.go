@@ -43,7 +43,7 @@ func AddBlockAndPrintNewline(blocks ...*types.Block) {
 
 func ReorgCheckAndPrint() map[uint64]*monitor.Reorg {
 	fmt.Println("\n---\n ")
-	reorgs, _ := Monitor.CheckForReorgs()
+	reorgs, _, _ := Monitor.CheckForReorgs(100, 0)
 	fmt.Println("\n---\n ")
 
 	fmt.Println(Monitor.String())
