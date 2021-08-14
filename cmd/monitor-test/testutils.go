@@ -63,11 +63,12 @@ func ReorgCheckAndPrint() (ret []*monitor.Reorg) {
 
 	fmt.Println("\n---\n ")
 	reorgs, _, _ := Monitor.CheckForReorgs(100, 0)
-	fmt.Println("\n---\n ")
+	// fmt.Println("\n---\n ")
 
 	fmt.Println("Summary for", Monitor.String())
+	fmt.Println("")
 	for _, reorg := range reorgs {
-		fmt.Printf("reorg: %s\n", reorg)
+		fmt.Println(reorg)
 		for i, segment := range reorg.Segments {
 			fmt.Printf("- segment %d: %s - %s\n", i, segment, strings.Join(segment.BlockHashes(), ", "))
 		}

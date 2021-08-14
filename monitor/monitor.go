@@ -12,127 +12,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-type ChainSegment struct {
-	FirstBlock *types.Block
-	LastBlock  *types.Block
-	Blocks     []*types.Block
-
-	IsMainChain bool
-}
-
-func NewChainSegment(firstBlock *types.Block) *ChainSegment {
-	segment := &ChainSegment{
-		FirstBlock: firstBlock,
-		LastBlock:  firstBlock,
-		Blocks:     make([]*types.Block, 1),
-	}
-	segment.Blocks[0] = firstBlock
-	return segment
-}
-
-func (s *ChainSegment) String() string {
-	segmentType := "main"
-	if !s.IsMainChain {
-		segmentType = "orph"
-	}
-	return fmt.Sprintf("Segment [%s], blocks: %d", segmentType, len(s.Blocks))
-}
-
-func (s *ChainSegment) BlockHashes() []string {
-	ret := make([]string, len(s.Blocks))
-	for i, b := range s.Blocks {
-		ret[i] = b.Hash().String()
-	}
-	return ret
-}
-
-func (s *ChainSegment) BlockHashesShort() []string {
-	ret := make([]string, len(s.Blocks))
-	for i, b := range s.Blocks {
-		h := b.Hash().String()
-		ret[i] = h[0:8] + "..." + h[len(h)-6:]
-	}
-	return ret
-}
-
-// Add a new block to the segment. Must be child of current last block.
-func (segment *ChainSegment) AddBlock(block *types.Block) error {
-	if block.ParentHash() != segment.LastBlock.Hash() {
-		return fmt.Errorf("ChainSegment.AddBlock: block has different parent (%s) than last block in this segment (%s)", block.ParentHash(), segment.LastBlock.Hash())
-	}
-	segment.Blocks = append(segment.Blocks, block)
-	segment.LastBlock = block
-	return nil
-}
-
-type Reorg struct {
-	StartBlockHeight uint64
-	EndBlockHeight   uint64
-	Depth            uint64
-	NumChains        uint64 // needs better detection of double-reorgs
-	IsCompleted      bool
-	SeenLive         bool
-
-	BlocksInvolved map[common.Hash]*types.Block
-	Segments       []*ChainSegment
-}
-
-func NewReorg() *Reorg {
-	return &Reorg{
-		BlocksInvolved: make(map[common.Hash]*types.Block),
-		Segments:       make([]*ChainSegment, 0),
-	}
-}
-
-func (r *Reorg) Id() string {
-	return fmt.Sprintf("%d_%d_d%d_b%d", r.StartBlockHeight, r.EndBlockHeight, r.Depth, len(r.BlocksInvolved))
-}
-
-func (r *Reorg) String() string {
-	return fmt.Sprintf("Reorg %s: live: %v, blocks %d - %d, depth: %d, numBlocks: %d", r.Id(), r.SeenLive, r.StartBlockHeight, r.EndBlockHeight, r.Depth, len(r.BlocksInvolved))
-}
-
-func (r *Reorg) AddBlock(block *types.Block) {
-	if _, found := r.BlocksInvolved[block.Hash()]; found {
-		// alredy known
-		return
-	}
-
-	r.BlocksInvolved[block.Hash()] = block
-
-	// Add to segment
-	addedToExistingSegment := false
-	for _, segment := range r.Segments {
-		// Segment found if last block is this one's parent
-		if block.ParentHash() == segment.LastBlock.Hash() {
-			segment.AddBlock(block)
-			addedToExistingSegment = true
-			break
-		}
-	}
-
-	if !addedToExistingSegment {
-		// need to create new segment
-		// todo: what if parent already in the middle of another segment?
-		newSegment := NewChainSegment(block)
-		r.Segments = append(r.Segments, newSegment)
-		fmt.Println("Added new segment for", block.Number(), block.Hash())
-	}
-}
-
-func (r *Reorg) Finalize(firstBlockWithoutSiblings *types.Block) {
-	r.IsCompleted = true
-	r.EndBlockHeight = firstBlockWithoutSiblings.NumberU64() - 1
-
-	// Find which is the main chain
-	for _, segment := range r.Segments {
-		if segment.LastBlock.Hash() == firstBlockWithoutSiblings.ParentHash() {
-			segment.IsMainChain = true
-			break
-		}
-	}
-}
-
 type ReorgMonitor struct { // monitor one node
 	client   *ethclient.Client
 	debug    bool
@@ -167,7 +46,7 @@ func NewReorgMonitor(ethUri string, nickname string, debug bool) *ReorgMonitor {
 }
 
 func (mon *ReorgMonitor) String() string {
-	return fmt.Sprintf("ReorgMonitor[%s]: %d..%d, %d blocks", mon.nickname, mon.EarliestBlockNumber, mon.LatestBlockNumber, len(mon.BlockByHash))
+	return fmt.Sprintf("ReorgMonitor[%s]: %d - %d, %d blocks", mon.nickname, mon.EarliestBlockNumber, mon.LatestBlockNumber, len(mon.BlockByHash))
 }
 
 func (mon *ReorgMonitor) DebugPrintln(a ...interface{}) {
@@ -179,25 +58,31 @@ func (mon *ReorgMonitor) DebugPrintln(a ...interface{}) {
 // AddBlock adds a block to history if it hasn't been seen before. Also will query and download
 // the chain of parents if not found
 func (mon *ReorgMonitor) AddBlock(block *types.Block, info string) error {
+	_, knownBlock := mon.BlockByHash[block.Hash()]
+	if knownBlock {
+		return nil
+	}
+
 	blockInfo := fmt.Sprintf("[%s] Add%s \t %10s \t %s", mon.nickname, reorgutils.SprintBlock(block), info, mon)
 	fmt.Println(blockInfo)
 
-	_, knownBlock := mon.BlockByHash[block.Hash()]
-	if !knownBlock {
-		// Add for access by hash
-		mon.BlockByHash[block.Hash()] = block
+	// Add for access by hash
+	mon.BlockByHash[block.Hash()] = block
 
-		// Add to array of blocks by height
-		if _, found := mon.BlocksByHeight[block.NumberU64()]; !found {
-			mon.BlocksByHeight[block.NumberU64()] = make([]*types.Block, 0)
-		}
-		mon.BlocksByHeight[block.NumberU64()] = append(mon.BlocksByHeight[block.NumberU64()], block)
+	// Create array of blocks at this height, if necessary
+	if _, found := mon.BlocksByHeight[block.NumberU64()]; !found {
+		mon.BlocksByHeight[block.NumberU64()] = make([]*types.Block, 0)
 	}
 
+	// Add to array of blocks at this height
+	mon.BlocksByHeight[block.NumberU64()] = append(mon.BlocksByHeight[block.NumberU64()], block)
+
+	// Set earliest block
 	if mon.EarliestBlockNumber == 0 {
 		mon.EarliestBlockNumber = block.NumberU64()
 	}
 
+	// Set latest block
 	if mon.LatestBlockNumber < block.NumberU64() {
 		mon.LatestBlockNumber = block.NumberU64()
 	}
