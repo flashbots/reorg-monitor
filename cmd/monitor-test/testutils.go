@@ -84,6 +84,7 @@ type ReorgTestResult struct {
 	Depth      uint64
 	NumBlocks  int
 	NumChains  int
+	MustBeLive bool
 }
 
 func GetBlockByHashStr(hashStr string) *types.Block {

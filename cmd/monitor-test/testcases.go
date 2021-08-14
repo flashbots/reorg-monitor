@@ -1,21 +1,15 @@
 package main
 
-type TestCase struct {
-	Name           string
-	BlockInfo      []string
-	ExpectedResult ReorgTestResult
+var Test_1Uncle = TestCase{
+	Name:           "uncles: 1",
+	BlockInfo:      []string{"12996760", "12996763"},
+	ExpectedResult: ReorgTestResult{StartBlock: 12996760, EndBlock: 12996760, Depth: 1, NumBlocks: 2, NumChains: 2},
 }
 
 var Test_2Uncles = TestCase{
 	Name:           "uncles: 2",
 	BlockInfo:      []string{"12996749", "12996751"},
 	ExpectedResult: ReorgTestResult{StartBlock: 12996750, EndBlock: 12996750, Depth: 1, NumBlocks: 3, NumChains: 3},
-}
-
-var Test_1Uncle = TestCase{
-	Name:           "uncles: 1",
-	BlockInfo:      []string{"12996760", "12996763"},
-	ExpectedResult: ReorgTestResult{StartBlock: 12996760, EndBlock: 12996760, Depth: 1, NumBlocks: 2, NumChains: 2},
 }
 
 var Test_ReorgD2 = TestCase{
