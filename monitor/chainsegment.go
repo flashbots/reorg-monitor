@@ -29,7 +29,7 @@ func (s *ChainSegment) String() string {
 	if !s.IsMainChain {
 		segmentType = "orph"
 	}
-	return fmt.Sprintf("Segment [%s], blocks: %d", segmentType, len(s.Blocks))
+	return fmt.Sprintf("ChainSegment [%s], blocks: %d", segmentType, len(s.Blocks))
 }
 
 func (s *ChainSegment) BlockHashes() []string {

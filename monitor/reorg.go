@@ -18,14 +18,14 @@ type Reorg struct {
 	NodeUri          string
 
 	BlocksInvolved map[common.Hash]*types.Block
-	Segments       []*ChainSegment
+	ChainSegments  []*ChainSegment
 }
 
 func NewReorg(nodeUri string) *Reorg {
 	return &Reorg{
 		NodeUri:        nodeUri,
 		BlocksInvolved: make(map[common.Hash]*types.Block),
-		Segments:       make([]*ChainSegment, 0),
+		ChainSegments:  make([]*ChainSegment, 0),
 	}
 }
 
@@ -34,11 +34,11 @@ func (r *Reorg) Id() string {
 }
 
 func (r *Reorg) String() string {
-	return fmt.Sprintf("Reorg %s (%s): live=%v, blocks %d - %d, depth: %d, numBlocks: %d, numChains: %d", r.Id(), r.NodeUri, r.SeenLive, r.StartBlockHeight, r.EndBlockHeight, r.Depth, len(r.BlocksInvolved), len(r.Segments))
+	return fmt.Sprintf("Reorg %s (%s): live=%-6v blocks %d - %d, depth: %d, numBlocks: %d, numChains: %d", r.Id(), r.NodeUri, r.SeenLive, r.StartBlockHeight, r.EndBlockHeight, r.Depth, len(r.BlocksInvolved), len(r.ChainSegments))
 }
 
 func (r *Reorg) PrintSegments() {
-	for _, segment := range r.Segments {
+	for _, segment := range r.ChainSegments {
 		fmt.Printf("- %s - %s\n", segment, strings.Join(segment.BlockHashes(), ", "))
 	}
 }
@@ -53,7 +53,7 @@ func (r *Reorg) AddBlock(block *types.Block) {
 
 	// Add to segment
 	addedToExistingSegment := false
-	for _, segment := range r.Segments {
+	for _, segment := range r.ChainSegments {
 		// Segment found if last block is this one's parent
 		if block.ParentHash() == segment.LastBlock.Hash() {
 			segment.AddBlock(block)
@@ -66,7 +66,7 @@ func (r *Reorg) AddBlock(block *types.Block) {
 		// need to create new segment
 		// todo: what if parent already in the middle of another segment?
 		newSegment := NewChainSegment(block)
-		r.Segments = append(r.Segments, newSegment)
+		r.ChainSegments = append(r.ChainSegments, newSegment)
 		// fmt.Println("Added new segment for", block.Number(), block.Hash())
 	}
 }
@@ -76,7 +76,7 @@ func (r *Reorg) Finalize(firstBlockWithoutSiblings *types.Block) {
 	r.EndBlockHeight = firstBlockWithoutSiblings.NumberU64() - 1
 
 	// Find which is the main chain
-	for _, segment := range r.Segments {
+	for _, segment := range r.ChainSegments {
 		if segment.LastBlock.Hash() == firstBlockWithoutSiblings.ParentHash() {
 			segment.IsMainChain = true
 			break

@@ -44,7 +44,7 @@ func handleReorg(reorg *monitor.Reorg) {
 	// new reorg
 	Reorgs[reorg.Id()] = reorg
 
-	log.Printf(ColorGreen, "Reorg found")
+	// log.Printf(ColorGreen, "Reorg found")
 	log.Println(reorg)
 	reorg.PrintSegments()
 
