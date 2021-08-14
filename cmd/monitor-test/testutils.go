@@ -6,6 +6,8 @@ import (
 	"log"
 	"math/big"
 	"reflect"
+	"strconv"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -15,7 +17,7 @@ import (
 )
 
 var Client *ethclient.Client
-var ethNodeUri string
+var EthNodeUri string
 var Monitor *monitor.ReorgMonitor
 
 func ConnectClient(uri string) error {
@@ -31,32 +33,56 @@ func ConnectClient(uri string) error {
 }
 
 func ResetMon(nick string) {
-	Monitor = monitor.NewReorgMonitor(ethNodeUri, nick, true)
+	Monitor = monitor.NewReorgMonitor(EthNodeUri, nick, false)
 	fmt.Println(Monitor.String())
+}
+
+func BlocksForStrings(blockStrings []string) (ret []*types.Block) {
+	ret = make([]*types.Block, len(blockStrings))
+	for i, blockStr := range blockStrings {
+		if len(blockStr) < 10 {
+			blockNum, err := strconv.Atoi(blockStr)
+			reorgutils.Perror(err)
+			ret[i] = GetBlockByNumber(int64(blockNum))
+		} else {
+			ret[i] = GetBlockByHashStr(blockStr)
+		}
+	}
+	return ret
 }
 
 func AddBlockAndPrintNewline(blocks ...*types.Block) {
 	for _, block := range blocks {
-		Monitor.AddBlock(block, "")
-		fmt.Println("")
+		Monitor.AddBlock(block, "test")
+		// fmt.Println("")
 	}
 }
 
-func ReorgCheckAndPrint() map[uint64]*monitor.Reorg {
+func ReorgCheckAndPrint() (ret []*monitor.Reorg) {
+	ret = make([]*monitor.Reorg, 0)
+
 	fmt.Println("\n---\n ")
 	reorgs, _, _ := Monitor.CheckForReorgs(100, 0)
 	fmt.Println("\n---\n ")
 
-	fmt.Println(Monitor.String())
-	for k, reorg := range reorgs {
-		fmt.Printf("reorg at block %d with depth %d: blocks %d - %d\n", k, reorg.Depth, reorg.StartBlockHeight, reorg.EndBlockHeight)
-		fmt.Println(len(reorg.BlocksInvolved), "blocks involved:")
-		for _, block := range reorg.BlocksInvolved {
-			fmt.Printf("- %d %s\n", block.NumberU64(), block.Hash())
+	fmt.Println("Summary for", Monitor.String())
+	for _, reorg := range reorgs {
+		fmt.Printf("reorg: %s\n", reorg)
+		for i, segment := range reorg.Segments {
+			fmt.Printf("- segment %d: %s - %s\n", i, segment, strings.Join(segment.BlockHashes(), ", "))
 		}
+		ret = append(ret, reorg)
 	}
 	fmt.Println("")
-	return reorgs
+	return ret
+}
+
+type ReorgTestResult struct {
+	StartBlock uint64
+	EndBlock   uint64
+	Depth      uint64
+	NumBlocks  int
+	NumChains  int
 }
 
 func GetBlockByHashStr(hashStr string) *types.Block {

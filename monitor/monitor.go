@@ -12,32 +12,58 @@ import (
 	"github.com/pkg/errors"
 )
 
-// type ChainSegment struct {
-// 	FirstBlock *types.Block
-// 	LastBlock  *types.Block
-// 	Blocks     map[common.Hash]*types.Block
-// 	// Parent         *types.Block
-// 	// Children       []*types.Block
-// }
+type ChainSegment struct {
+	FirstBlock *types.Block
+	LastBlock  *types.Block
+	Blocks     []*types.Block
 
-// func NewChainSegment(firstBlock *types.Block) *ChainSegment {
-// 	segment := &ChainSegment{
-// 		FirstBlock: firstBlock,
-// 		LastBlock:  firstBlock,
-// 		Blocks:     make(map[common.Hash]*types.Block),
-// 	}
-// 	segment.Blocks[firstBlock.Hash()] = firstBlock
-// 	return segment
-// }
+	IsMainChain bool
+}
 
-// func (segment *ChainSegment) AddBlock(block *types.Block) error {
-// 	if block.ParentHash() != segment.LastBlock.Hash() {
-// 		return fmt.Errorf("ChainSegment.AddBlock: block has different parent (%s) than last block in this segment (%s)", block.ParentHash(), segment.LastBlock.Hash())
-// 	}
-// 	segment.Blocks[block.Hash()] = block
-// 	segment.LastBlock = block
-// 	return nil
-// }
+func NewChainSegment(firstBlock *types.Block) *ChainSegment {
+	segment := &ChainSegment{
+		FirstBlock: firstBlock,
+		LastBlock:  firstBlock,
+		Blocks:     make([]*types.Block, 1),
+	}
+	segment.Blocks[0] = firstBlock
+	return segment
+}
+
+func (s *ChainSegment) String() string {
+	segmentType := "main"
+	if !s.IsMainChain {
+		segmentType = "orph"
+	}
+	return fmt.Sprintf("Segment [%s], blocks: %d", segmentType, len(s.Blocks))
+}
+
+func (s *ChainSegment) BlockHashes() []string {
+	ret := make([]string, len(s.Blocks))
+	for i, b := range s.Blocks {
+		ret[i] = b.Hash().String()
+	}
+	return ret
+}
+
+func (s *ChainSegment) BlockHashesShort() []string {
+	ret := make([]string, len(s.Blocks))
+	for i, b := range s.Blocks {
+		h := b.Hash().String()
+		ret[i] = h[0:8] + "..." + h[len(h)-6:]
+	}
+	return ret
+}
+
+// Add a new block to the segment. Must be child of current last block.
+func (segment *ChainSegment) AddBlock(block *types.Block) error {
+	if block.ParentHash() != segment.LastBlock.Hash() {
+		return fmt.Errorf("ChainSegment.AddBlock: block has different parent (%s) than last block in this segment (%s)", block.ParentHash(), segment.LastBlock.Hash())
+	}
+	segment.Blocks = append(segment.Blocks, block)
+	segment.LastBlock = block
+	return nil
+}
 
 type Reorg struct {
 	StartBlockHeight uint64
@@ -48,12 +74,13 @@ type Reorg struct {
 	SeenLive         bool
 
 	BlocksInvolved map[common.Hash]*types.Block
-	// Segments []*ChainSegment
+	Segments       []*ChainSegment
 }
 
 func NewReorg() *Reorg {
 	return &Reorg{
 		BlocksInvolved: make(map[common.Hash]*types.Block),
+		Segments:       make([]*ChainSegment, 0),
 	}
 }
 
@@ -63,6 +90,47 @@ func (r *Reorg) Id() string {
 
 func (r *Reorg) String() string {
 	return fmt.Sprintf("Reorg %s: live: %v, blocks %d - %d, depth: %d, numBlocks: %d", r.Id(), r.SeenLive, r.StartBlockHeight, r.EndBlockHeight, r.Depth, len(r.BlocksInvolved))
+}
+
+func (r *Reorg) AddBlock(block *types.Block) {
+	if _, found := r.BlocksInvolved[block.Hash()]; found {
+		// alredy known
+		return
+	}
+
+	r.BlocksInvolved[block.Hash()] = block
+
+	// Add to segment
+	addedToExistingSegment := false
+	for _, segment := range r.Segments {
+		// Segment found if last block is this one's parent
+		if block.ParentHash() == segment.LastBlock.Hash() {
+			segment.AddBlock(block)
+			addedToExistingSegment = true
+			break
+		}
+	}
+
+	if !addedToExistingSegment {
+		// need to create new segment
+		// todo: what if parent already in the middle of another segment?
+		newSegment := NewChainSegment(block)
+		r.Segments = append(r.Segments, newSegment)
+		fmt.Println("Added new segment for", block.Number(), block.Hash())
+	}
+}
+
+func (r *Reorg) Finalize(firstBlockWithoutSiblings *types.Block) {
+	r.IsCompleted = true
+	r.EndBlockHeight = firstBlockWithoutSiblings.NumberU64() - 1
+
+	// Find which is the main chain
+	for _, segment := range r.Segments {
+		if segment.LastBlock.Hash() == firstBlockWithoutSiblings.ParentHash() {
+			segment.IsMainChain = true
+			break
+		}
+	}
 }
 
 type ReorgMonitor struct { // monitor one node
@@ -111,7 +179,7 @@ func (mon *ReorgMonitor) DebugPrintln(a ...interface{}) {
 // AddBlock adds a block to history if it hasn't been seen before. Also will query and download
 // the chain of parents if not found
 func (mon *ReorgMonitor) AddBlock(block *types.Block, info string) error {
-	blockInfo := fmt.Sprintf("[%s] Add%s \t %s \t %s", mon.nickname, reorgutils.SprintBlock(block), info, mon)
+	blockInfo := fmt.Sprintf("[%s] Add%s \t %10s \t %s", mon.nickname, reorgutils.SprintBlock(block), info, mon)
 	fmt.Println(blockInfo)
 
 	_, knownBlock := mon.BlockByHash[block.Hash()]
@@ -138,7 +206,7 @@ func (mon *ReorgMonitor) AddBlock(block *types.Block, info string) error {
 		// Check and potentially download parent (back until start of monitoring)
 		_, found := mon.BlockByHash[block.ParentHash()]
 		if !found {
-			mon.DebugPrintln(fmt.Sprintf("- parent of %d %s not found (%s), downloading...\n", block.NumberU64(), block.Hash(), block.ParentHash()))
+			mon.DebugPrintln(fmt.Sprintf("- parent of %d %s not found (%s), downloading...", block.NumberU64(), block.Hash(), block.ParentHash()))
 			_, _, err := mon.EnsureBlock(block.ParentHash(), "get-parent")
 			if err != nil {
 				return errors.Wrap(err, "get unknown parent error")
@@ -147,7 +215,7 @@ func (mon *ReorgMonitor) AddBlock(block *types.Block, info string) error {
 
 		// Check uncles
 		for _, uncleHeader := range block.Uncles() {
-			mon.DebugPrintln(fmt.Sprintf("- block %d %s has uncle: %s\n", block.NumberU64(), block.Hash(), uncleHeader.Hash()))
+			mon.DebugPrintln(fmt.Sprintf("- block %d %s has uncle: %s", block.NumberU64(), block.Hash(), uncleHeader.Hash()))
 			_, existed, err := mon.EnsureBlock(uncleHeader.Hash(), "get-uncle")
 			if err != nil {
 				return errors.Wrap(err, "get uncle error")
@@ -170,7 +238,7 @@ func (mon *ReorgMonitor) EnsureBlock(blockHash common.Hash, info string) (block 
 		return block, true, nil
 	}
 
-	mon.DebugPrintln(fmt.Sprintf("- block with hash %s not found, downloading...\n", blockHash))
+	mon.DebugPrintln(fmt.Sprintf("- block with hash %s not found, downloading...", blockHash))
 	block, err = mon.client.BlockByHash(context.Background(), blockHash)
 	if err != nil {
 		return nil, false, errors.Wrap(err, "EnsureBlock error")
@@ -258,7 +326,7 @@ func (mon *ReorgMonitor) CheckForReorgs(maxBlocks uint64, distanceToLastBlockHei
 
 			// Add all blocks at this height to it's own segment
 			for _, block := range mon.BlocksByHeight[height] {
-				reorgs[currentReorgStartHeight].BlocksInvolved[block.Hash()] = block
+				reorgs[currentReorgStartHeight].AddBlock(block)
 			}
 
 			// Increase depth
@@ -270,8 +338,7 @@ func (mon *ReorgMonitor) CheckForReorgs(maxBlocks uint64, distanceToLastBlockHei
 		} else {
 			// 1 block, end of reorg
 			if currentReorgStartHeight != 0 {
-				reorgs[currentReorgStartHeight].IsCompleted = true
-				reorgs[currentReorgStartHeight].EndBlockHeight = currentReorgEndHeight
+				reorgs[currentReorgStartHeight].Finalize(mon.BlocksByHeight[height][0])
 				currentReorgStartHeight = 0
 			}
 		}
