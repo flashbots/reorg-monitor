@@ -7,7 +7,6 @@ import (
 	"math/big"
 	"reflect"
 	"strconv"
-	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -33,8 +32,8 @@ func ConnectClient(uri string) error {
 }
 
 func ResetMon(nick string) {
-	Monitor = monitor.NewReorgMonitor(EthNodeUri, nick, false)
-	fmt.Println(Monitor.String())
+	Monitor = monitor.NewReorgMonitor(EthNodeUri, false, true)
+	// fmt.Println(Monitor.String())
 }
 
 func BlocksForStrings(blockStrings []string) (ret []*types.Block) {
@@ -69,9 +68,10 @@ func ReorgCheckAndPrint() (ret []*monitor.Reorg) {
 	fmt.Println("")
 	for _, reorg := range reorgs {
 		fmt.Println(reorg)
-		for i, segment := range reorg.Segments {
-			fmt.Printf("- segment %d: %s - %s\n", i, segment, strings.Join(segment.BlockHashes(), ", "))
-		}
+		reorg.PrintSegments()
+		// for i, segment := range reorg.Segments {
+		// 	fmt.Printf("- segment %d: %s - %s\n", i, segment, strings.Join(segment.BlockHashes(), ", "))
+		// }
 		ret = append(ret, reorg)
 	}
 	fmt.Println("")

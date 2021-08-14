@@ -31,7 +31,7 @@ func main() {
 	}()
 
 	// Start a monitor
-	mon := monitor.NewReorgMonitor(*ethUriPtr, "eth1", *debugPtr)
+	mon := monitor.NewReorgMonitor(*ethUriPtr, *debugPtr, true)
 	mon.SubscribeAndStart(reorgChan)
 }
 
@@ -44,7 +44,9 @@ func handleReorg(reorg *monitor.Reorg) {
 	// new reorg
 	Reorgs[reorg.Id()] = reorg
 
-	log.Printf(ColorGreen, reorg)
+	log.Printf(ColorGreen, "Reorg found")
+	log.Println(reorg)
+	reorg.PrintSegments()
 
 	// Todo:
 	// - Get coinbase diff

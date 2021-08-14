@@ -13,9 +13,11 @@ import (
 )
 
 type ReorgMonitor struct { // monitor one node
-	client   *ethclient.Client
-	debug    bool
-	nickname string
+	client  *ethclient.Client
+	debug   bool
+	verbose bool
+
+	nodeUri string
 
 	BlockByHash    map[common.Hash]*types.Block
 	BlocksByHeight map[uint64][]*types.Block
@@ -27,17 +29,19 @@ type ReorgMonitor struct { // monitor one node
 	BlockViaUncleInfo map[common.Hash]bool // true if that block was not seen live but rather seen through uncle information of child block. Used to know if we saw a reorg live
 }
 
-func NewReorgMonitor(ethUri string, nickname string, debug bool) *ReorgMonitor {
+func NewReorgMonitor(ethNodeUri string, debug bool, verbose bool) *ReorgMonitor {
 	// Connect to geth node
-	fmt.Printf("[%s] Connecting to %s...", nickname, ethUri)
-	client, err := ethclient.Dial(ethUri)
+	fmt.Printf("[%s] Connecting to node...", ethNodeUri)
+	client, err := ethclient.Dial(ethNodeUri)
 	reorgutils.Perror(err)
 	fmt.Printf(" ok\n")
 
 	return &ReorgMonitor{
-		client:            client,
-		debug:             debug,
-		nickname:          nickname,
+		client:  client,
+		debug:   debug,
+		verbose: verbose,
+		nodeUri: ethNodeUri,
+
 		BlockByHash:       make(map[common.Hash]*types.Block),
 		BlocksByHeight:    make(map[uint64][]*types.Block),
 		Reorgs:            make(map[string]*Reorg),
@@ -46,7 +50,7 @@ func NewReorgMonitor(ethUri string, nickname string, debug bool) *ReorgMonitor {
 }
 
 func (mon *ReorgMonitor) String() string {
-	return fmt.Sprintf("ReorgMonitor[%s]: %d - %d, %d blocks", mon.nickname, mon.EarliestBlockNumber, mon.LatestBlockNumber, len(mon.BlockByHash))
+	return fmt.Sprintf("ReorgMonitor[%s]: %d - %d, %d blocks", mon.nodeUri, mon.EarliestBlockNumber, mon.LatestBlockNumber, len(mon.BlockByHash))
 }
 
 func (mon *ReorgMonitor) DebugPrintln(a ...interface{}) {
@@ -63,7 +67,7 @@ func (mon *ReorgMonitor) AddBlock(block *types.Block, info string) error {
 		return nil
 	}
 
-	blockInfo := fmt.Sprintf("[%s] Add%s \t %10s \t %s", mon.nickname, reorgutils.SprintBlock(block), info, mon)
+	blockInfo := fmt.Sprintf("[%s] Add%s \t %10s \t %s", mon.nodeUri, reorgutils.SprintBlock(block), info, mon)
 	fmt.Println(blockInfo)
 
 	// Add for access by hash
@@ -196,7 +200,7 @@ func (mon *ReorgMonitor) CheckForReorgs(maxBlocks uint64, distanceToLastBlockHei
 			if currentReorgStartHeight == 0 {
 				currentReorgStartHeight = height
 
-				reorgs[height] = NewReorg()
+				reorgs[height] = NewReorg(mon.nodeUri)
 				reorgs[height].StartBlockHeight = height
 				reorgs[height].NumChains = numBlocksAtHeight
 

@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -14,13 +15,15 @@ type Reorg struct {
 	NumChains        uint64 // needs better detection of double-reorgs
 	IsCompleted      bool
 	SeenLive         bool
+	NodeUri          string
 
 	BlocksInvolved map[common.Hash]*types.Block
 	Segments       []*ChainSegment
 }
 
-func NewReorg() *Reorg {
+func NewReorg(nodeUri string) *Reorg {
 	return &Reorg{
+		NodeUri:        nodeUri,
 		BlocksInvolved: make(map[common.Hash]*types.Block),
 		Segments:       make([]*ChainSegment, 0),
 	}
@@ -31,7 +34,13 @@ func (r *Reorg) Id() string {
 }
 
 func (r *Reorg) String() string {
-	return fmt.Sprintf("Reorg %s: live=%v, blocks %d - %d, depth: %d, numBlocks: %d, numChains: %d", r.Id(), r.SeenLive, r.StartBlockHeight, r.EndBlockHeight, r.Depth, len(r.BlocksInvolved), len(r.Segments))
+	return fmt.Sprintf("Reorg %s (%s): live=%v, blocks %d - %d, depth: %d, numBlocks: %d, numChains: %d", r.Id(), r.NodeUri, r.SeenLive, r.StartBlockHeight, r.EndBlockHeight, r.Depth, len(r.BlocksInvolved), len(r.Segments))
+}
+
+func (r *Reorg) PrintSegments() {
+	for _, segment := range r.Segments {
+		fmt.Printf("- %s - %s\n", segment, strings.Join(segment.BlockHashes(), ", "))
+	}
 }
 
 func (r *Reorg) AddBlock(block *types.Block) {
