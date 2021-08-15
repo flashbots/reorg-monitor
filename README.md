@@ -46,5 +46,5 @@ Note: You can find more infos about the children of uncles via AlchemyApi: https
 grep -v "AddBlock" output/monitor-new/run12.txt 
 
 # Get depth: 2 and higher reorgs
-grep "Reorg 1" output/monitor-new/run11.txt | grep -v "depth: 1"
+grep "Reorg 1" output/monitor-new/run12.txt | grep -v "depth: 1"
 ```

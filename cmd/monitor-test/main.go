@@ -31,9 +31,9 @@ func main() {
 	// Test(Test_1Uncle)
 	// Test(Test_2Uncles)
 	// Test(Test_ReorgD2)
-	// Test(Test_DoubleReorgD3)
+	Test(Test_DoubleReorgD3)
 	// Test(Test_ReorgD2B5)
-	Test(Test_Nxew1)
+	// Test(Test_Nxew1)
 }
 
 func Test(testCase TestCase) {
@@ -68,4 +68,6 @@ func Test(testCase TestCase) {
 	}
 
 	fmt.Println("All check passed")
+
+	fmt.Println(reorg.MermaidSyntax())
 }

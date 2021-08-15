@@ -17,8 +17,9 @@ type Reorg struct {
 	SeenLive         bool
 	NodeUri          string
 
-	BlocksInvolved map[common.Hash]*types.Block
-	ChainSegments  []*ChainSegment
+	BlocksInvolved       map[common.Hash]*types.Block
+	ChainSegments        []*ChainSegment
+	FirstBlockAfterReorg *types.Block
 }
 
 func NewReorg(nodeUri string) *Reorg {
@@ -74,6 +75,7 @@ func (r *Reorg) AddBlock(block *types.Block) {
 func (r *Reorg) Finalize(firstBlockWithoutSiblings *types.Block) {
 	r.IsCompleted = true
 	r.EndBlockHeight = firstBlockWithoutSiblings.NumberU64() - 1
+	r.FirstBlockAfterReorg = firstBlockWithoutSiblings
 
 	// Find which is the main chain
 	for _, segment := range r.ChainSegments {
@@ -82,4 +84,21 @@ func (r *Reorg) Finalize(firstBlockWithoutSiblings *types.Block) {
 			break
 		}
 	}
+}
+
+func (r *Reorg) MermaidSyntax() string {
+	ret := "stateDiagram-v2\n"
+	if len(r.ChainSegments) == 0 {
+		return ret
+	}
+
+	for _, seg := range r.ChainSegments {
+		for _, block := range seg.Blocks {
+			ret += fmt.Sprintf("    %s --> %s\n", block.ParentHash(), block.Hash())
+		}
+	}
+
+	// Add first block after reorg
+	ret += fmt.Sprintf("    %s --> %s\n", r.FirstBlockAfterReorg.ParentHash(), r.FirstBlockAfterReorg.Hash())
+	return ret
 }
