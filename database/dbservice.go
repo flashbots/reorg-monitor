@@ -80,21 +80,22 @@ func (s *DatabaseService) AddReorgEntry(entry ReorgEntry) error {
 	}
 
 	// Insert
-	s.DB.MustExec("INSERT INTO reorgs (Key, NodeUri, SeenLive, StartBlockNumber, EndBlockNumber, Depth, NumBlocksInvolved, NumBlocksReplaced, MermaidSyntax) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", entry.Key, entry.NodeUri, entry.SeenLive, entry.StartBlockNumber, entry.EndBlockNumber, entry.Depth, entry.NumBlocksInvolved, entry.NumBlocksReplaced, entry.MermaidSyntax)
-	return nil
+	_, err = s.DB.Exec("INSERT INTO reorgs (Key, NodeUri, SeenLive, StartBlockNumber, EndBlockNumber, Depth, NumBlocksInvolved, NumBlocksReplaced, MermaidSyntax) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", entry.Key, entry.NodeUri, entry.SeenLive, entry.StartBlockNumber, entry.EndBlockNumber, entry.Depth, entry.NumBlocksInvolved, entry.NumBlocksReplaced, entry.MermaidSyntax)
+	return err
 }
 
-func (s *DatabaseService) AddBlockEntry(block BlockEntry) error {
+func (s *DatabaseService) AddBlockEntry(entry BlockEntry) error {
 	var count int
-	err := s.DB.QueryRow("SELECT COUNT(*) FROM blocks_with_earnings WHERE BlockHash = $1", strings.ToLower(block.BlockHash)).Scan(&count)
+	err := s.DB.QueryRow("SELECT COUNT(*) FROM blocks_with_earnings WHERE BlockHash = $1", strings.ToLower(entry.BlockHash)).Scan(&count)
 	if err != nil {
 		return err
 	}
 	if count > 0 { // already exists
-		// return nil
+		return nil
 	}
 
 	// Insert
-	// s.DB.MustExec("INSERT INTO block (Number, Time, NumTx, GasUsed, GasLimit) VALUES ($1, $2, $3, $4, $5)", block.Number().String(), block.Header().Time, len(block.Transactions()), block.GasUsed(), block.GasLimit())
-	return nil
+	_, err = s.DB.Exec("INSERT INTO blocks_with_earnings (Reorg_Key, BlockNumber, BlockHash, ParentHash, BlockTimestamp, CoinbaseAddress, Difficulty, NumUncles, NumTx, IsPartOfReorg, IsMainChain, IsUncle, IsChild, MevGeth_CoinbaseDiffEth, MevGeth_CoinbaseDiffWei, MevGeth_GasFeesWei, MevGeth_EthSentToCoinbaseWei) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)",
+		entry.Reorg_Key, entry.BlockNumber, entry.BlockHash, entry.ParentHash, entry.BlockTimestamp, entry.CoinbaseAddress, entry.Difficulty, entry.NumUncles, entry.NumTx, entry.IsPartOfReorg, entry.IsMainChain, entry.IsUncle, entry.IsChild, entry.MevGeth_CoinbaseDiffEth, entry.MevGeth_CoinbaseDiffWei, entry.MevGeth_GasFeesWei, entry.MevGeth_EthSentToCoinbaseWei)
+	return err
 }

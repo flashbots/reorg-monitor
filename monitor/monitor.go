@@ -199,19 +199,16 @@ func (mon *ReorgMonitor) CheckForReorgs(maxBlocks uint64, distanceToLastBlockHei
 			if currentReorg == nil {
 				currentReorg = NewReorg(mon.nodeUri)
 				currentReorg.StartBlockHeight = height
-
-				// Was seen live if none of the first siblings was detected through uncle unformation of child
-				currentReorg.SeenLive = true
-				for _, block := range mon.BlocksByHeight[height] {
-					if mon.BlockViaUncleInfo[block.Hash()] {
-						currentReorg.SeenLive = false
-					}
-				}
+				currentReorg.SeenLive = true // will be set to false if any of the added blocks was received via uncle-info
 			}
 
 			// Add all blocks at this height to it's own segment
 			for _, block := range mon.BlocksByHeight[height] {
 				currentReorg.AddBlock(block)
+
+				if mon.BlockViaUncleInfo[block.Hash()] {
+					currentReorg.SeenLive = false
+				}
 			}
 
 		} else if numBlocksAtHeight == 0 {

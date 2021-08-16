@@ -7,13 +7,18 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/metachris/eth-reorg-monitor/database"
 	"github.com/metachris/eth-reorg-monitor/monitor"
+	flashbotsrpc "github.com/metachris/flashbots-rpc"
 )
 
-var Reorgs map[string]*monitor.Reorg = make(map[string]*monitor.Reorg)
 var saveToDb = false
+var simulateBlocksWithMevGeth = false
+
+var Reorgs map[string]*monitor.Reorg = make(map[string]*monitor.Reorg)
 var db *database.DatabaseService
+var rpc *flashbotsrpc.FlashbotsRPC
 
 var ColorGreen = "\033[1;32m%s\033[0m"
 
@@ -33,15 +38,30 @@ func main() {
 	ethUriPtr := flag.String("eth", os.Getenv("ETH_NODE"), "Geth node URI")
 	debugPtr := flag.Bool("debug", false, "print debug information")
 	saveToDbPtr := flag.Bool("db", false, "save reorgs to database")
+
+	mevGethSimPtr := flag.Bool("sim", false, "simulate blocks in mev-geth")
+	mevGethUriPtr := flag.String("mevgeth", os.Getenv("MEVGETH_NODE"), "mev-geth node URI")
 	flag.Parse()
 
 	if *ethUriPtr == "" {
 		log.Fatal("Missing eth node uri")
 	}
 
+	if *mevGethSimPtr {
+		if *mevGethUriPtr == "" {
+			log.Fatal("Missing mevgeth node uri")
+		}
+
+		simulateBlocksWithMevGeth = true
+		rpc = flashbotsrpc.NewFlashbotsRPC(*mevGethUriPtr)
+		rpc.Debug = *debugPtr
+	}
+
 	if *saveToDbPtr {
 		saveToDb = *saveToDbPtr
-		db = database.NewDatabaseService(getDbConfig())
+		dbCfg := getDbConfig()
+		db = database.NewDatabaseService(dbCfg)
+		fmt.Println("Connected to database at", dbCfg.Host)
 	}
 
 	// Handle reorgs from many monitors
@@ -76,10 +96,30 @@ func handleReorg(reorg *monitor.Reorg) {
 
 	if saveToDb {
 		entry := database.NewReorgEntry(reorg)
-		db.AddReorgEntry(entry)
+		err := db.AddReorgEntry(entry)
+		if err != nil {
+			log.Println("err at db.AddReorgEntry:", err)
+		}
 	}
 
-	// Todo:
-	// - Get coinbase diff
-	// - Save to database
+	if simulateBlocksWithMevGeth {
+		privateKey, _ := crypto.GenerateKey()
+
+		for _, block := range reorg.BlocksInvolved {
+			res, err := rpc.FlashbotsSimulateBlock(privateKey, block, 0)
+			if err != nil {
+				log.Println("error: sim failed of block", block.Hash(), "-", err)
+			}
+
+			fmt.Printf("sim of block %s:\n", block.Hash())
+			fmt.Println("- CoinbaseDiff:", res.CoinbaseDiff)
+			fmt.Println("- GasFees:", res.GasFees)
+			fmt.Println("- EthSentToCoinbase:", res.EthSentToCoinbase)
+
+			if saveToDb {
+				blockEntry := database.NewBlockEntry(block, reorg, &res)
+				db.AddBlockEntry(blockEntry)
+			}
+		}
+	}
 }

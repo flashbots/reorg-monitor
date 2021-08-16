@@ -57,4 +57,11 @@ func main() {
 
 	entry := database.NewReorgEntry(reorg)
 	db.AddReorgEntry(entry)
+
+	// blocks
+	for _, block := range reorg.BlocksInvolved {
+		blockEntry := database.NewBlockEntry(block, reorg, nil)
+		db.AddBlockEntry(blockEntry)
+		break
+	}
 }

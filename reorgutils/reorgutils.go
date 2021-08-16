@@ -40,3 +40,11 @@ func SprintBlock(block *types.Block) string {
 	t := time.Unix(int64(block.Time()), 0).UTC()
 	return fmt.Sprintf("Block %s %s \t %s \t tx: %3d, uncles: %d", block.Number(), block.Hash(), t, len(block.Transactions()), len(block.Uncles()))
 }
+
+func WeiToEth(wei *big.Int) (ethValue *big.Float) {
+	// wei / 10^18
+	fbalance := new(big.Float)
+	fbalance.SetString(wei.String())
+	ethValue = new(big.Float).Quo(fbalance, big.NewFloat(1e18))
+	return
+}
