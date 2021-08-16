@@ -48,7 +48,7 @@ func handleReorg(reorg *monitor.Reorg) {
 
 	// log.Printf(ColorGreen, "Reorg found")
 	log.Println(reorg)
-	reorg.PrintSegments()
+	// reorg.PrintSegments()
 	if reorg.Depth > 1 {
 		fmt.Println(reorg.MermaidSyntax())
 	}

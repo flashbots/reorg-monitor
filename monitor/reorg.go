@@ -2,33 +2,35 @@ package monitor
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
 type Reorg struct {
-	StartBlockHeight uint64 // first block number with siblings
-	EndBlockHeight   uint64
-	Depth            uint64
-	NumChains        uint64 // needs better detection of double-reorgs
-	IsCompleted      bool
-	SeenLive         bool
-	NodeUri          string
+	NodeUri     string
+	IsCompleted bool
+	SeenLive    bool
 
-	BlocksInvolved map[common.Hash]*types.Block
-	ChainSegments  []*ChainSegment
+	StartBlockHeight  uint64 // first block number with siblings
+	EndBlockHeight    uint64
+	Depth             int
+	NumReplacedBlocks int
 
-	// LastBlockBeforeReorg *types.Block
-	FirstBlockAfterReorg *types.Block
+	BlocksInvolved  map[common.Hash]*types.Block
+	MainChain       []*types.Block // chain of remaining blocks
+	MainChainHashes map[common.Hash]bool
+
+	LastBlockHashBeforeReorg common.Hash
+	FirstBlockAfterReorg     *types.Block
 }
 
 func NewReorg(nodeUri string) *Reorg {
 	return &Reorg{
-		NodeUri:        nodeUri,
-		BlocksInvolved: make(map[common.Hash]*types.Block),
-		ChainSegments:  make([]*ChainSegment, 0),
+		NodeUri:         nodeUri,
+		BlocksInvolved:  make(map[common.Hash]*types.Block),
+		MainChain:       make([]*types.Block, 0),
+		MainChainHashes: make(map[common.Hash]bool),
 	}
 }
 
@@ -37,13 +39,27 @@ func (r *Reorg) Id() string {
 }
 
 func (r *Reorg) String() string {
-	return fmt.Sprintf("Reorg %s (%s): live=%-6v blocks %d - %d, depth: %d, numBlocks: %d, numChains: %d", r.Id(), r.NodeUri, r.SeenLive, r.StartBlockHeight, r.EndBlockHeight, r.Depth, len(r.BlocksInvolved), len(r.ChainSegments))
+	return fmt.Sprintf("Reorg %s (%s): live=%-6v blocks %d - %d, depth: %d, numBlocks: %d, lenMainChain: %d", r.Id(), r.NodeUri, r.SeenLive, r.StartBlockHeight, r.EndBlockHeight, r.Depth, len(r.BlocksInvolved), len(r.MainChain))
 }
 
-func (r *Reorg) PrintSegments() {
-	for _, segment := range r.ChainSegments {
-		fmt.Printf("- %s - %s\n", segment, strings.Join(segment.BlockHashes(), ", "))
+func (r *Reorg) GetMainChainHashes() []string {
+	blockHashes := []string{}
+	for _, block := range r.MainChain {
+		blockHashes = append(blockHashes, block.Hash().String())
 	}
+	return blockHashes
+}
+
+func (r *Reorg) GetReplacedBlockHashes() []string {
+	hashes := []string{}
+	for hash := range r.BlocksInvolved {
+		_, isMainChainBlock := r.MainChainHashes[hash]
+		if !isMainChainBlock {
+			hashes = append(hashes, hash.String())
+		}
+
+	}
+	return hashes
 }
 
 func (r *Reorg) AddBlock(block *types.Block) {
@@ -52,52 +68,54 @@ func (r *Reorg) AddBlock(block *types.Block) {
 		return
 	}
 
-	r.BlocksInvolved[block.Hash()] = block
-
-	// Add to segment
-	addedToExistingSegment := false
-	for _, segment := range r.ChainSegments {
-		// Segment found if last block is this one's parent
-		if block.ParentHash() == segment.LastBlock.Hash() {
-			segment.AddBlock(block)
-			addedToExistingSegment = true
-			break
-		}
+	if len(r.BlocksInvolved) == 0 { // first block
+		r.LastBlockHashBeforeReorg = block.ParentHash()
 	}
 
-	if !addedToExistingSegment {
-		// need to create new segment
-		// todo: what if parent already in the middle of another segment?
-		newSegment := NewChainSegment(block)
-		r.ChainSegments = append(r.ChainSegments, newSegment)
-		// fmt.Println("Added new segment for", block.Number(), block.Hash())
+	r.BlocksInvolved[block.Hash()] = block
+
+	if block.NumberU64() > r.EndBlockHeight {
+		r.EndBlockHeight = block.NumberU64()
 	}
 }
 
 func (r *Reorg) Finalize(firstBlockWithoutSiblings *types.Block) {
 	r.IsCompleted = true
-	r.EndBlockHeight = firstBlockWithoutSiblings.NumberU64() - 1
 	r.FirstBlockAfterReorg = firstBlockWithoutSiblings
 
-	// Find which is the main chain
-	for _, segment := range r.ChainSegments {
-		if segment.LastBlock.Hash() == firstBlockWithoutSiblings.ParentHash() {
-			segment.IsMainChain = true
+	r.MainChain = make([]*types.Block, 0)
+	r.MainChainHashes = make(map[common.Hash]bool)
+
+	curBlockHash := firstBlockWithoutSiblings.ParentHash() // start from last block in reorg and work backwards until start
+	for {
+		if curBlockHash == r.LastBlockHashBeforeReorg { // done, as we are now before the reorg
 			break
 		}
+
+		block, found := r.BlocksInvolved[curBlockHash]
+		if !found {
+			fmt.Printf("err in Finalize: couldn't find block")
+			break
+		}
+
+		r.MainChain = append(r.MainChain, block)
+		r.MainChainHashes[block.Hash()] = true
+
+		curBlockHash = block.ParentHash()
 	}
+
+	// Reverse the array, so earliest block comes first
+	for i, j := 0, len(r.MainChain)-1; i < j; i, j = i+1, j-1 {
+		r.MainChain[i], r.MainChain[j] = r.MainChain[j], r.MainChain[i]
+	}
+	r.NumReplacedBlocks = len(r.BlocksInvolved) - len(r.MainChain)
 }
 
 func (r *Reorg) MermaidSyntax() string {
 	ret := "stateDiagram-v2\n"
-	if len(r.ChainSegments) == 0 {
-		return ret
-	}
 
-	for _, seg := range r.ChainSegments {
-		for _, block := range seg.Blocks {
-			ret += fmt.Sprintf("    %s --> %s\n", block.ParentHash(), block.Hash())
-		}
+	for _, block := range r.BlocksInvolved {
+		ret += fmt.Sprintf("    %s --> %s\n", block.ParentHash(), block.Hash())
 	}
 
 	// Add first block after reorg

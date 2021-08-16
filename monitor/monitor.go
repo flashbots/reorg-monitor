@@ -202,9 +202,9 @@ func (mon *ReorgMonitor) CheckForReorgs(maxBlocks uint64, distanceToLastBlockHei
 
 				reorgs[height] = NewReorg(mon.nodeUri)
 				reorgs[height].StartBlockHeight = height
-				reorgs[height].NumChains = numBlocksAtHeight
+				// reorgs[height].NumChains = numBlocksAtHeight
 
-				// Was seen live if none of the siblings was detected through uncle unformation of child
+				// Was seen live if none of the first siblings was detected through uncle unformation of child
 				reorgs[height].SeenLive = true
 				for _, block := range mon.BlocksByHeight[height] {
 					if mon.BlockViaUncleInfo[block.Hash()] {

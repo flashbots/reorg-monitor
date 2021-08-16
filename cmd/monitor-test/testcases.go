@@ -3,7 +3,7 @@ package main
 /*
 Interesting reorgs for tests:
 
-2021/08/16 03:55:05 Reorg 13033424_13033425_d2_b5 (/server/geth.ipc): live=false  blocks 13033424 - 13033425, depth: 2, numBlocks: 5, numChains: 4
+2021/08/16 03:55:05 Reorg 13033424_13033425_d2_b5 (/server/geth.ipc): live=false  blocks 13033424 - 13033425, depth: 2, numBlocks: 5
 - ChainSegment [orph], blocks: 2 - 0x42087d1b5230fd48172c19d301691aa0866d62739b00804e21ad9668a30fa461, 0x448b1495889c0a1759e83d08b5550b14c7992b6dd84b0eda84414bbd62675337
 - ChainSegment [orph], blocks: 1 - 0x5c4aaa79df3c48f53282340c1893a4547d4d42c4ca3af5376dba34646832925d
 - ChainSegment [orph], blocks: 1 - 0xd608ccc185b058eae7c12547712244c38ddd98e515e8ba1df7e0af29b468bd3c
@@ -20,13 +20,13 @@ stateDiagram-v2
 var Test_1Uncle = TestCase{
 	Name:           "uncles: 1",
 	BlockInfo:      []string{"12996760", "12996763"},
-	ExpectedResult: ReorgTestResult{StartBlock: 12996760, EndBlock: 12996760, Depth: 1, NumBlocks: 2, NumChains: 2},
+	ExpectedResult: ReorgTestResult{StartBlock: 12996760, EndBlock: 12996760, Depth: 1, NumBlocks: 2},
 }
 
 var Test_2Uncles = TestCase{
 	Name:           "uncles: 2",
 	BlockInfo:      []string{"12996749", "12996751"},
-	ExpectedResult: ReorgTestResult{StartBlock: 12996750, EndBlock: 12996750, Depth: 1, NumBlocks: 3, NumChains: 3},
+	ExpectedResult: ReorgTestResult{StartBlock: 12996750, EndBlock: 12996750, Depth: 1, NumBlocks: 3},
 }
 
 var Test_ReorgD2 = TestCase{
@@ -37,7 +37,7 @@ var Test_ReorgD2 = TestCase{
 		"0x61d0546aba46a166c185c584673e5afe911673e22ca75a754f165454b161e72a", // 12991734
 		"12991736",
 	},
-	ExpectedResult: ReorgTestResult{StartBlock: 12991732, EndBlock: 12991733, Depth: 2, NumBlocks: 4, NumChains: 2},
+	ExpectedResult: ReorgTestResult{StartBlock: 12991732, EndBlock: 12991733, Depth: 2, NumBlocks: 4},
 }
 
 var Test_DoubleReorgD3 = TestCase{
@@ -48,7 +48,7 @@ var Test_DoubleReorgD3 = TestCase{
 		"0xdca194ddb314c1c4e3de10ccfcb88bf9183a78118a393e1b3860e5eb10dd7c6c", // 12969889
 		"12969891",
 	},
-	ExpectedResult: ReorgTestResult{StartBlock: 12969887, EndBlock: 12969889, Depth: 3, NumBlocks: 6, NumChains: 3},
+	ExpectedResult: ReorgTestResult{StartBlock: 12969887, EndBlock: 12969889, Depth: 3, NumBlocks: 6},
 }
 
 var Test_ReorgD2B5 = TestCase{ // 3 blocks at 13017535, 2 blocks at 13017536
@@ -64,7 +64,7 @@ var Test_ReorgD2B5 = TestCase{ // 3 blocks at 13017535, 2 blocks at 13017536
 		"0xebf21cef1a406e30bb7b4d482591ca82e444f779efcb76ce67d09c2f548b4c82", // 13017537
 		"0xb22ff4c5759adb7e14da8644d2dfdef98bb0e43f3d548cdcdbb0c7fa78675413", // 13017538
 	},
-	ExpectedResult: ReorgTestResult{StartBlock: 13017535, EndBlock: 13017536, Depth: 2, NumBlocks: 5, NumChains: 4},
+	ExpectedResult: ReorgTestResult{StartBlock: 13017535, EndBlock: 13017536, Depth: 2, NumBlocks: 5},
 }
 
 var Test_ReorgD2B4 = TestCase{
@@ -80,7 +80,7 @@ var Test_ReorgD2B4 = TestCase{
 		"0x6b501f2591c5f16398497cf71ea7fcc845029847a39f90ebc01f76408a3c665f", // 13018373
 		"0xcfba4b54e919631d3b678ab82c9f22bc0cfc4e26341825088a447830d46a7ba1", // 13018374
 	},
-	ExpectedResult: ReorgTestResult{StartBlock: 13018369, EndBlock: 13018370, Depth: 2, NumBlocks: 4, NumChains: 2},
+	ExpectedResult: ReorgTestResult{StartBlock: 13018369, EndBlock: 13018370, Depth: 2, NumBlocks: 4},
 }
 
 var Test_13033424_13033425_d2_b5 = TestCase{
@@ -94,5 +94,5 @@ var Test_13033424_13033425_d2_b5 = TestCase{
 		"0xd608ccc185b058eae7c12547712244c38ddd98e515e8ba1df7e0af29b468bd3c",
 		"0xb63bb5b0ee3bffb39c6afec9e7569150c9a9b170aba84f5a34c960ffb27046e4",
 	},
-	ExpectedResult: ReorgTestResult{StartBlock: 13033424, EndBlock: 13033425, Depth: 2, NumBlocks: 5, NumChains: 4},
+	ExpectedResult: ReorgTestResult{StartBlock: 13033424, EndBlock: 13033425, Depth: 2, NumBlocks: 5, NumReplacedBlocks: 3},
 }

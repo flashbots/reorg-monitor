@@ -53,15 +53,15 @@ func Test(testCase TestCase) {
 	Pcheck("EndBlock", reorg.EndBlockHeight, testCase.ExpectedResult.EndBlock)
 	Pcheck("Depth", reorg.Depth, testCase.ExpectedResult.Depth)
 	Pcheck("NumBlocks", len(reorg.BlocksInvolved), testCase.ExpectedResult.NumBlocks)
-	Pcheck("NumChains", len(reorg.ChainSegments), testCase.ExpectedResult.NumChains)
+	Pcheck("NumReplacedBlocks", reorg.NumReplacedBlocks, testCase.ExpectedResult.NumReplacedBlocks)
 
-	hasMainChain := false
-	for _, segment := range reorg.ChainSegments {
-		if segment.IsMainChain {
-			hasMainChain = true
-		}
-	}
-	Pcheck("HasMainChain", hasMainChain, true)
+	// hasMainChain := false
+	// for _, segment := range reorg.ChainSegments {
+	// 	if segment.IsMainChain {
+	// 		hasMainChain = true
+	// 	}
+	// }
+	// Pcheck("HasMainChain", hasMainChain, true)
 
 	if testCase.ExpectedResult.MustBeLive {
 		Pcheck("MustBeLive", reorg.SeenLive, true)

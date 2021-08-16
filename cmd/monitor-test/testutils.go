@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -68,10 +69,8 @@ func ReorgCheckAndPrint() (ret []*monitor.Reorg) {
 	fmt.Println("")
 	for _, reorg := range reorgs {
 		fmt.Println(reorg)
-		reorg.PrintSegments()
-		// for i, segment := range reorg.Segments {
-		// 	fmt.Printf("- segment %d: %s - %s\n", i, segment, strings.Join(segment.BlockHashes(), ", "))
-		// }
+		fmt.Println("mainchain:", strings.Join(reorg.GetMainChainHashes(), ", "))
+		fmt.Println("discarded:", strings.Join(reorg.GetReplacedBlockHashes(), ", "))
 		ret = append(ret, reorg)
 	}
 	fmt.Println("")
@@ -79,12 +78,12 @@ func ReorgCheckAndPrint() (ret []*monitor.Reorg) {
 }
 
 type ReorgTestResult struct {
-	StartBlock uint64
-	EndBlock   uint64
-	Depth      uint64
-	NumBlocks  int
-	NumChains  int
-	MustBeLive bool
+	MustBeLive        bool
+	StartBlock        uint64
+	EndBlock          uint64
+	Depth             int
+	NumBlocks         int
+	NumReplacedBlocks int
 }
 
 func GetBlockByHashStr(hashStr string) *types.Block {
