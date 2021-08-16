@@ -108,7 +108,9 @@ func (r *Reorg) Finalize(firstBlockWithoutSiblings *types.Block) {
 	for i, j := 0, len(r.MainChain)-1; i < j; i, j = i+1, j-1 {
 		r.MainChain[i], r.MainChain[j] = r.MainChain[j], r.MainChain[i]
 	}
+
 	r.NumReplacedBlocks = len(r.BlocksInvolved) - len(r.MainChain)
+	r.Depth = int(r.EndBlockHeight) - int(r.StartBlockHeight) + 1
 }
 
 func (r *Reorg) MermaidSyntax() string {

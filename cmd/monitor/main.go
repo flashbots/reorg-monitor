@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/metachris/eth-reorg-monitor/monitor"
 )
@@ -46,9 +47,10 @@ func handleReorg(reorg *monitor.Reorg) {
 	// new reorg
 	Reorgs[reorg.Id()] = reorg
 
-	// log.Printf(ColorGreen, "Reorg found")
 	log.Println(reorg)
-	// reorg.PrintSegments()
+	fmt.Println("- mainchain:", strings.Join(reorg.GetMainChainHashes(), ", "))
+	fmt.Println("- discarded:", strings.Join(reorg.GetReplacedBlockHashes(), ", "))
+
 	if reorg.Depth > 1 {
 		fmt.Println(reorg.MermaidSyntax())
 	}

@@ -58,23 +58,20 @@ func AddBlockAndPrintNewline(blocks ...*types.Block) {
 	}
 }
 
-func ReorgCheckAndPrint() (ret []*monitor.Reorg) {
-	ret = make([]*monitor.Reorg, 0)
-
+func ReorgCheckAndPrint() []*monitor.Reorg {
 	fmt.Println("\n---\n ")
-	reorgs, _, _ := Monitor.CheckForReorgs(100, 0)
+	reorgs := Monitor.CheckForReorgs(100, 0)
 	// fmt.Println("\n---\n ")
 
 	fmt.Println("Summary for", Monitor.String())
 	fmt.Println("")
 	for _, reorg := range reorgs {
 		fmt.Println(reorg)
-		fmt.Println("mainchain:", strings.Join(reorg.GetMainChainHashes(), ", "))
-		fmt.Println("discarded:", strings.Join(reorg.GetReplacedBlockHashes(), ", "))
-		ret = append(ret, reorg)
+		fmt.Println("- mainchain:", strings.Join(reorg.GetMainChainHashes(), ", "))
+		fmt.Println("- discarded:", strings.Join(reorg.GetReplacedBlockHashes(), ", "))
 	}
 	fmt.Println("")
-	return ret
+	return reorgs
 }
 
 type ReorgTestResult struct {

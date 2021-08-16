@@ -177,12 +177,9 @@ func (mon *ReorgMonitor) SubscribeAndStart(reorgChan chan<- *Reorg) string {
 	}
 }
 
-func (mon *ReorgMonitor) CheckForReorgs(maxBlocks uint64, distanceToLastBlockHeight uint64) (reorgs map[uint64]*Reorg, isOngoingReorg bool, lastReorgEndHeight uint64) {
+func (mon *ReorgMonitor) CheckForReorgs(maxBlocks uint64, distanceToLastBlockHeight uint64) []*Reorg {
 	// ro.DebugPrintln("c")
-	reorgs = make(map[uint64]*Reorg)
-
-	var currentReorgStartHeight uint64
-	var currentReorgEndHeight uint64
+	reorgs := make([]*Reorg, 0)
 
 	startBlockNumber := mon.EarliestBlockNumber
 	if maxBlocks > 0 && mon.LatestBlockNumber-maxBlocks > mon.EarliestBlockNumber {
@@ -190,6 +187,8 @@ func (mon *ReorgMonitor) CheckForReorgs(maxBlocks uint64, distanceToLastBlockHei
 	}
 
 	endBlockNumber := mon.LatestBlockNumber - distanceToLastBlockHeight
+	var currentReorg *Reorg
+
 	for height := startBlockNumber; height <= endBlockNumber; height++ {
 		mon.DebugPrintln("CheckForReorgs at height", height)
 		numBlocksAtHeight := uint64(len(mon.BlocksByHeight[height]))
@@ -197,49 +196,43 @@ func (mon *ReorgMonitor) CheckForReorgs(maxBlocks uint64, distanceToLastBlockHei
 			// fmt.Printf("- sibling blocks at %d: %v\n", height, ro.NodesByHeight[height])
 
 			// detect reorg start
-			if currentReorgStartHeight == 0 {
-				currentReorgStartHeight = height
-
-				reorgs[height] = NewReorg(mon.nodeUri)
-				reorgs[height].StartBlockHeight = height
-				// reorgs[height].NumChains = numBlocksAtHeight
+			if currentReorg == nil {
+				currentReorg = NewReorg(mon.nodeUri)
+				currentReorg.StartBlockHeight = height
 
 				// Was seen live if none of the first siblings was detected through uncle unformation of child
-				reorgs[height].SeenLive = true
+				currentReorg.SeenLive = true
 				for _, block := range mon.BlocksByHeight[height] {
 					if mon.BlockViaUncleInfo[block.Hash()] {
-						reorgs[height].SeenLive = false
+						currentReorg.SeenLive = false
 					}
 				}
 			}
 
 			// Add all blocks at this height to it's own segment
 			for _, block := range mon.BlocksByHeight[height] {
-				reorgs[currentReorgStartHeight].AddBlock(block)
+				currentReorg.AddBlock(block)
 			}
-
-			// Increase depth
-			reorgs[currentReorgStartHeight].Depth += 1
-			currentReorgEndHeight = height
 
 		} else if numBlocksAtHeight == 0 {
 			fmt.Printf("CheckForReorgs: no block at height %d found\n", height)
 		} else {
 			// 1 block, end of reorg
-			if currentReorgStartHeight != 0 {
-				reorgs[currentReorgStartHeight].Finalize(mon.BlocksByHeight[height][0])
-				currentReorgStartHeight = 0
+			currentBlock := mon.BlocksByHeight[height][0]
+			if currentReorg != nil {
+				currentReorg.Finalize(currentBlock)
+				reorgs = append(reorgs, currentReorg)
+				currentReorg = nil
 			}
 		}
 	}
 
-	isOngoingReorg = currentReorgStartHeight != 0
-	return reorgs, isOngoingReorg, currentReorgEndHeight
+	return reorgs
 }
 
 func (mon *ReorgMonitor) CheckForCompletedReorgs(maxBlocks uint64, distanceToLastBlockHeight uint64) (reorgs []*Reorg) {
 	reorgs = make([]*Reorg, 0)
-	_reorgs, _, _ := mon.CheckForReorgs(maxBlocks, distanceToLastBlockHeight)
+	_reorgs := mon.CheckForReorgs(maxBlocks, distanceToLastBlockHeight)
 	for _, _reorg := range _reorgs {
 		if _reorg.IsCompleted {
 			reorgs = append(reorgs, _reorg)
