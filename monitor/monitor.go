@@ -67,7 +67,7 @@ func (mon *ReorgMonitor) AddBlock(block *types.Block, info string) error {
 		return nil
 	}
 
-	blockInfo := fmt.Sprintf("[%s] Add%s \t %10s \t %s", mon.nodeUri, reorgutils.SprintBlock(block), info, mon)
+	blockInfo := fmt.Sprintf("[%s] Add%s \t %-12s \t %s", mon.nodeUri, reorgutils.SprintBlock(block), info, mon)
 	fmt.Println(blockInfo)
 
 	// Add for access by hash

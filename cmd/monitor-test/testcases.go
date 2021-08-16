@@ -17,42 +17,39 @@ stateDiagram-v2
     0x5996b0838dbd0d23458664633d1f7beef77be74a69abafdd588825b01ab1f15a --> 0xb63bb5b0ee3bffb39c6afec9e7569150c9a9b170aba84f5a34c960ffb27046e4
 */
 
-var Test_1Uncle = TestCase{
-	Name:           "uncles: 1",
+var Test_12996760_12996760_d1_b2 = TestCase{
+	Name:           "1 uncle",
 	BlockInfo:      []string{"12996760", "12996763"},
-	ExpectedResult: ReorgTestResult{StartBlock: 12996760, EndBlock: 12996760, Depth: 1, NumBlocks: 2},
+	ExpectedResult: ReorgTestResult{StartBlock: 12996760, EndBlock: 12996760, Depth: 1, NumBlocks: 2, NumReplacedBlocks: 1},
 }
 
-var Test_2Uncles = TestCase{
-	Name:           "uncles: 2",
+var Test_12996750_12996750_d1_b3 = TestCase{
+	Name:           "2 uncles",
 	BlockInfo:      []string{"12996749", "12996751"},
-	ExpectedResult: ReorgTestResult{StartBlock: 12996750, EndBlock: 12996750, Depth: 1, NumBlocks: 3},
+	ExpectedResult: ReorgTestResult{StartBlock: 12996750, EndBlock: 12996750, Depth: 1, NumBlocks: 3, NumReplacedBlocks: 2},
 }
 
-var Test_ReorgD2 = TestCase{
-	Name: "depth: 2",
+var Test_12991732_12991733_d2_b4 = TestCase{
 	BlockInfo: []string{
 		"12991730",
 		"0xc5d7c2d6da0a4dba574ca6b7697b5850477d646fdb067b20d908060b0d5651c7", // 12991733
 		"0x61d0546aba46a166c185c584673e5afe911673e22ca75a754f165454b161e72a", // 12991734
 		"12991736",
 	},
-	ExpectedResult: ReorgTestResult{StartBlock: 12991732, EndBlock: 12991733, Depth: 2, NumBlocks: 4},
+	ExpectedResult: ReorgTestResult{StartBlock: 12991732, EndBlock: 12991733, Depth: 2, NumBlocks: 4, NumReplacedBlocks: 2},
 }
 
-var Test_DoubleReorgD3 = TestCase{
-	Name: "double, d3",
+var Test_12969887_12969889_d3_b6 = TestCase{
 	BlockInfo: []string{
 		"12969885",
 		"0xae396e35c045b8603de015e182ce1349c579c68bb00396bfb8a7b5946a4fa87c", // 12969889
 		"0xdca194ddb314c1c4e3de10ccfcb88bf9183a78118a393e1b3860e5eb10dd7c6c", // 12969889
 		"12969891",
 	},
-	ExpectedResult: ReorgTestResult{StartBlock: 12969887, EndBlock: 12969889, Depth: 3, NumBlocks: 6},
+	ExpectedResult: ReorgTestResult{StartBlock: 12969887, EndBlock: 12969889, Depth: 3, NumBlocks: 6, NumReplacedBlocks: 3},
 }
 
-var Test_ReorgD2B5 = TestCase{ // 3 blocks at 13017535, 2 blocks at 13017536
-	Name: "reorg b3+2",
+var Test_13017535_13017536_d2_b5 = TestCase{ // 3 blocks at 13017535, 2 blocks at 13017536
 	BlockInfo: []string{
 		"0xd633f8b768ae1e6975eb0fbd8f5d7ef7b06151a9106a23c17b0ee1b4f74a9bed", // 13017533
 		"0xab672fe4e5ca25f44d8cf5c8be556a155d976ddc27a21e069172b3dda7335dad", // 13017534
@@ -64,11 +61,10 @@ var Test_ReorgD2B5 = TestCase{ // 3 blocks at 13017535, 2 blocks at 13017536
 		"0xebf21cef1a406e30bb7b4d482591ca82e444f779efcb76ce67d09c2f548b4c82", // 13017537
 		"0xb22ff4c5759adb7e14da8644d2dfdef98bb0e43f3d548cdcdbb0c7fa78675413", // 13017538
 	},
-	ExpectedResult: ReorgTestResult{StartBlock: 13017535, EndBlock: 13017536, Depth: 2, NumBlocks: 5},
+	ExpectedResult: ReorgTestResult{StartBlock: 13017535, EndBlock: 13017536, Depth: 2, NumBlocks: 5, NumReplacedBlocks: 3},
 }
 
-var Test_ReorgD2B4 = TestCase{
-	Name: "n1",
+var Test_13018369_13018370_d2_b4 = TestCase{
 	BlockInfo: []string{
 		"0xae416859b2ae32ac70dee15d3b164d81f27c5990312b72419bd0d15c856911bc", // 13018368
 		"0x9282169b84cde985685d6157438ef5a4ff7fa83a895ff31a4893c9400e87b0c9", // 13018369
@@ -80,11 +76,10 @@ var Test_ReorgD2B4 = TestCase{
 		"0x6b501f2591c5f16398497cf71ea7fcc845029847a39f90ebc01f76408a3c665f", // 13018373
 		"0xcfba4b54e919631d3b678ab82c9f22bc0cfc4e26341825088a447830d46a7ba1", // 13018374
 	},
-	ExpectedResult: ReorgTestResult{StartBlock: 13018369, EndBlock: 13018370, Depth: 2, NumBlocks: 4},
+	ExpectedResult: ReorgTestResult{StartBlock: 13018369, EndBlock: 13018370, Depth: 2, NumBlocks: 4, NumReplacedBlocks: 2},
 }
 
 var Test_13033424_13033425_d2_b5 = TestCase{
-	Name: "depth 2, blocks 5",
 	BlockInfo: []string{
 		"0x29af3e566af450ec7443b1857944a7c266aed19707f348e24657bc4abc32ec9f",
 		"0x42087d1b5230fd48172c19d301691aa0866d62739b00804e21ad9668a30fa461",
