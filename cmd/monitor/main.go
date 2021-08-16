@@ -90,10 +90,6 @@ func handleReorg(reorg *monitor.Reorg) {
 	fmt.Println("- mainchain:", strings.Join(reorg.GetMainChainHashes(), ", "))
 	fmt.Println("- discarded:", strings.Join(reorg.GetReplacedBlockHashes(), ", "))
 
-	if reorg.Depth > 1 {
-		fmt.Println(reorg.MermaidSyntax())
-	}
-
 	if saveToDb {
 		entry := database.NewReorgEntry(reorg)
 		err := db.AddReorgEntry(entry)
@@ -110,7 +106,7 @@ func handleReorg(reorg *monitor.Reorg) {
 			if err != nil {
 				log.Println("error: sim failed of block", block.Hash(), "-", err)
 			} else {
-				fmt.Printf("- sim of block %s: CoinbaseDiff=%s, GasFees=%s, EthSentToCoinbase=%s\n", block.Hash(), res.CoinbaseDiff, res.GasFees, res.EthSentToCoinbase)
+				fmt.Printf("- sim of block %s: CoinbaseDiff=%20s, GasFees=%20s, EthSentToCoinbase=%20s\n", block.Hash(), res.CoinbaseDiff, res.GasFees, res.EthSentToCoinbase)
 			}
 
 			if saveToDb {
@@ -122,5 +118,10 @@ func handleReorg(reorg *monitor.Reorg) {
 				db.AddBlockEntry(blockEntry)
 			}
 		}
+	}
+
+	if reorg.Depth > 1 {
+		fmt.Println(reorg.MermaidSyntax())
+		fmt.Println("")
 	}
 }

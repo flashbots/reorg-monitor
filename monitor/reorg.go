@@ -121,6 +121,6 @@ func (r *Reorg) MermaidSyntax() string {
 	}
 
 	// Add first block after reorg
-	ret += fmt.Sprintf("    %s --> %s\n", r.FirstBlockAfterReorg.ParentHash(), r.FirstBlockAfterReorg.Hash())
+	ret += fmt.Sprintf("    %s --> %s", r.FirstBlockAfterReorg.ParentHash(), r.FirstBlockAfterReorg.Hash())
 	return ret
 }
