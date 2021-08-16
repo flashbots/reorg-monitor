@@ -33,7 +33,6 @@ Note: You can find more infos about the children of uncles via AlchemyApi: https
 
 ## TODO
 
-* reog: proper main chainsegment
 * Limit memory growth by pruning old blocks.
 
 ---
