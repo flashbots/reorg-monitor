@@ -39,7 +39,7 @@ func (r *Reorg) Id() string {
 }
 
 func (r *Reorg) String() string {
-	return fmt.Sprintf("Reorg %s (%s): live=%-6v blocks %d - %d, depth: %d, numBlocks: %d, lenMainChain: %d", r.Id(), r.NodeUri, r.SeenLive, r.StartBlockHeight, r.EndBlockHeight, r.Depth, len(r.BlocksInvolved), len(r.MainChain))
+	return fmt.Sprintf("Reorg %s (%s): live=%-6v blocks %d - %d, depth: %d, lenMainChain: %d, numBlocks: %d, replacedBlocks: %d", r.Id(), r.NodeUri, r.SeenLive, r.StartBlockHeight, r.EndBlockHeight, r.Depth, len(r.MainChain), len(r.BlocksInvolved), r.NumReplacedBlocks)
 }
 
 func (r *Reorg) GetMainChainHashes() []string {
