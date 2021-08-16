@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS blocks_with_earnings (
     BlockTimestamp  integer NOT NULL,
     CoinbaseAddress text NOT NULL,
 
-    Difficulty bigint NOT NULL,
+    Difficulty bigint  NOT NULL,
     NumUncles  integer NOT NULL,
     NumTx      integer NOT NULL,
 

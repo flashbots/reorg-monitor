@@ -109,15 +109,16 @@ func handleReorg(reorg *monitor.Reorg) {
 			res, err := rpc.FlashbotsSimulateBlock(privateKey, block, 0)
 			if err != nil {
 				log.Println("error: sim failed of block", block.Hash(), "-", err)
+			} else {
+				fmt.Printf("- sim of block %s: CoinbaseDiff=%s, GasFees=%s, EthSentToCoinbase=%s\n", block.Hash(), res.CoinbaseDiff, res.GasFees, res.EthSentToCoinbase)
 			}
 
-			fmt.Printf("sim of block %s:\n", block.Hash())
-			fmt.Println("- CoinbaseDiff:", res.CoinbaseDiff)
-			fmt.Println("- GasFees:", res.GasFees)
-			fmt.Println("- EthSentToCoinbase:", res.EthSentToCoinbase)
-
 			if saveToDb {
-				blockEntry := database.NewBlockEntry(block, reorg, &res)
+				response := &res
+				if err != nil {
+					response = nil
+				}
+				blockEntry := database.NewBlockEntry(block, reorg, response)
 				db.AddBlockEntry(blockEntry)
 			}
 		}
