@@ -9,7 +9,7 @@ import (
 )
 
 type Reorg struct {
-	StartBlockHeight uint64
+	StartBlockHeight uint64 // first block number with siblings
 	EndBlockHeight   uint64
 	Depth            uint64
 	NumChains        uint64 // needs better detection of double-reorgs
@@ -17,8 +17,10 @@ type Reorg struct {
 	SeenLive         bool
 	NodeUri          string
 
-	BlocksInvolved       map[common.Hash]*types.Block
-	ChainSegments        []*ChainSegment
+	BlocksInvolved map[common.Hash]*types.Block
+	ChainSegments  []*ChainSegment
+
+	// LastBlockBeforeReorg *types.Block
 	FirstBlockAfterReorg *types.Block
 }
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 
@@ -16,6 +17,7 @@ func main() {
 
 	ethUriPtr := flag.String("eth", os.Getenv("ETH_NODE"), "Geth node URI")
 	debugPtr := flag.Bool("debug", false, "print debug information")
+	// mermaidFile := flag.String("mermaid", "", "file")
 	flag.Parse()
 
 	if *ethUriPtr == "" {
@@ -47,6 +49,9 @@ func handleReorg(reorg *monitor.Reorg) {
 	// log.Printf(ColorGreen, "Reorg found")
 	log.Println(reorg)
 	reorg.PrintSegments()
+	if reorg.Depth > 1 {
+		fmt.Println(reorg.MermaidSyntax())
+	}
 
 	// Todo:
 	// - Get coinbase diff

@@ -33,9 +33,8 @@ Note: You can find more infos about the children of uncles via AlchemyApi: https
 
 ## TODO
 
-* Printing replaced blocks: add miner
+* reog: proper main chainsegment
 * Limit memory growth by pruning old blocks.
-* For each new header, get the full block (with tx receipts?) to inspect tx in case of reorg
 
 ---
 
@@ -43,8 +42,13 @@ Note: You can find more infos about the children of uncles via AlchemyApi: https
 
 ```bash
 # Show only reorgs with ChainSegments
-grep -v "AddBlock" output/monitor-new/run12.txt 
+grep -v "AddBlock" output/monitor-new/run13.txt 
 
 # Get depth: 2 and higher reorgs
-grep "Reorg 1" output/monitor-new/run12.txt | grep -v "depth: 1"
+grep "Reorg 1" output/monitor-new/run13.txt | grep -v "depth: 1"
 ```
+
+Mermaid:
+
+* https://mermaid-js.github.io/mermaid/#/stateDiagram
+* https://mermaid-js.github.io/mermaid-live-editor

@@ -31,9 +31,9 @@ func main() {
 	// Test(Test_1Uncle)
 	// Test(Test_2Uncles)
 	// Test(Test_ReorgD2)
-	Test(Test_DoubleReorgD3)
+	// Test(Test_DoubleReorgD3)
 	// Test(Test_ReorgD2B5)
-	// Test(Test_Nxew1)
+	Test(Test_13033424_13033425_d2_b5)
 }
 
 func Test(testCase TestCase) {
