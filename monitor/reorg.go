@@ -35,7 +35,11 @@ func NewReorg(nodeUri string) *Reorg {
 }
 
 func (r *Reorg) Id() string {
-	return fmt.Sprintf("%d_%d_d%d_b%d", r.StartBlockHeight, r.EndBlockHeight, r.Depth, len(r.BlocksInvolved))
+	id := fmt.Sprintf("%d_%d_d%d_b%d", r.StartBlockHeight, r.EndBlockHeight, r.Depth, len(r.BlocksInvolved))
+	if r.SeenLive {
+		id += "_l"
+	}
+	return id
 }
 
 func (r *Reorg) String() string {

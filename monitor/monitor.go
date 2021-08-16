@@ -163,9 +163,11 @@ func (mon *ReorgMonitor) SubscribeAndStart(reorgChan chan<- *Reorg) string {
 			}
 
 			// Check for reorgs
-			completedReorgs := mon.CheckForCompletedReorgs(100, 2)
+			completedReorgs := mon.CheckForCompletedReorgs(200, 2)
 			for _, reorg := range completedReorgs {
 				reorgId := reorg.Id()
+
+				// If we have a yet unknown reorg, send to channel
 				_, found := mon.Reorgs[reorgId]
 				if !found {
 					// log.Println("New completed reorg found:", reorg.String())

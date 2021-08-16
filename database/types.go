@@ -46,10 +46,12 @@ CREATE TABLE IF NOT EXISTS blocks_with_earnings (
     IsUncle       boolean NOT NULL,
     IsChild       boolean NOT NULL,
 
-    MevGeth_CoinbaseDiffEth      VARCHAR(10),
     MevGeth_CoinbaseDiffWei      NUMERIC(48, 0),
     MevGeth_GasFeesWei           NUMERIC(48, 0),
-    MevGeth_EthSentToCoinbaseWei NUMERIC(48, 0)
+    MevGeth_EthSentToCoinbaseWei NUMERIC(48, 0),
+
+    MevGeth_CoinbaseDiffEth      VARCHAR(10),
+    MevGeth_EthSentToCoinbase    VARCHAR(10)
 );
 `
 
@@ -101,10 +103,12 @@ type BlockEntry struct {
 	IsUncle       bool
 	IsChild       bool
 
-	MevGeth_CoinbaseDiffEth      string
 	MevGeth_CoinbaseDiffWei      string
 	MevGeth_GasFeesWei           string
 	MevGeth_EthSentToCoinbaseWei string
+
+	MevGeth_CoinbaseDiffEth   string
+	MevGeth_EthSentToCoinbase string
 }
 
 func NewBlockEntry(block *types.Block, reorg *monitor.Reorg, callBundleResponse *flashbotsrpc.FlashbotsCallBundleResponse) BlockEntry {
@@ -132,20 +136,28 @@ func NewBlockEntry(block *types.Block, reorg *monitor.Reorg, callBundleResponse 
 		IsChild:       isChild,
 
 		MevGeth_CoinbaseDiffWei:      "-1",
-		MevGeth_CoinbaseDiffEth:      "-1",
 		MevGeth_GasFeesWei:           "-1",
 		MevGeth_EthSentToCoinbaseWei: "-1",
+
+		MevGeth_CoinbaseDiffEth:   "-1",
+		MevGeth_EthSentToCoinbase: "-1",
 	}
 
 	if callBundleResponse != nil {
-		coinbaseDiff := new(big.Int)
-		coinbaseDiff.SetString(callBundleResponse.CoinbaseDiff, 10)
-		coinbaseDiffEth := reorgutils.WeiToEth(coinbaseDiff)
+		coinbaseDiffWei := new(big.Int)
+		coinbaseDiffWei.SetString(callBundleResponse.CoinbaseDiff, 10)
+		coinbaseDiffEth := reorgutils.WeiToEth(coinbaseDiffWei)
+
+		ethSentToCoinbaseWei := new(big.Int)
+		ethSentToCoinbaseWei.SetString(callBundleResponse.EthSentToCoinbase, 10)
+		ethSentToCoinbase := reorgutils.WeiToEth(ethSentToCoinbaseWei)
 
 		blockEntry.MevGeth_CoinbaseDiffWei = callBundleResponse.CoinbaseDiff
-		blockEntry.MevGeth_CoinbaseDiffEth = coinbaseDiffEth.Text('f', 6)
 		blockEntry.MevGeth_GasFeesWei = callBundleResponse.GasFees
 		blockEntry.MevGeth_EthSentToCoinbaseWei = callBundleResponse.EthSentToCoinbase
+
+		blockEntry.MevGeth_CoinbaseDiffEth = coinbaseDiffEth.Text('f', 6)
+		blockEntry.MevGeth_EthSentToCoinbase = ethSentToCoinbase.Text('f', 6)
 	}
 
 	return blockEntry
