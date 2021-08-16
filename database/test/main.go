@@ -6,11 +6,23 @@ import (
 	"log"
 	"os"
 
+	"github.com/metachris/eth-reorg-monitor/database"
 	"github.com/metachris/eth-reorg-monitor/reorgutils"
 	"github.com/metachris/eth-reorg-monitor/testutils"
 )
 
+var db *database.DatabaseService
+
 func main() {
+	dbConfig := database.PostgresConfig{
+		User:       "user1",
+		Password:   "password",
+		Host:       "localhost",
+		Name:       "reorg",
+		DisableTLS: true,
+	}
+	db = database.NewDatabaseService(dbConfig)
+
 	log.SetOutput(os.Stdout)
 
 	ethUriPtr := flag.String("eth", os.Getenv("ETH_NODE"), "Geth node URI")
@@ -29,15 +41,11 @@ func main() {
 	// Test(testutils.Test_12969887_12969889_d3_b6)
 	// Test(testutils.Test_13017535_13017536_d2_b5)
 	// Test(testutils.Test_13018369_13018370_d2_b4)
-	Test(testutils.Test_13033424_13033425_d2_b5)
-}
 
-func Test(testCase testutils.TestCase) {
-	// Create a new monitor
-	testutils.ResetMon(testCase.Name)
+	testutils.ResetMon("")
 
 	// Add the blocks
-	for _, block := range testutils.BlocksForStrings(testCase.BlockInfo) {
+	for _, block := range testutils.BlocksForStrings(testutils.Test_13018369_13018370_d2_b4.BlockInfo) {
 		testutils.Monitor.AddBlock(block, "test")
 	}
 
@@ -45,15 +53,8 @@ func Test(testCase testutils.TestCase) {
 	testutils.Pcheck("NumReorgs", len(reorgs), 1)
 
 	reorg := reorgs[0]
-	testutils.Pcheck("StartBlock", reorg.StartBlockHeight, testCase.ExpectedResult.StartBlock)
-	testutils.Pcheck("EndBlock", reorg.EndBlockHeight, testCase.ExpectedResult.EndBlock)
-	testutils.Pcheck("Depth", reorg.Depth, testCase.ExpectedResult.Depth)
-	testutils.Pcheck("NumBlocks", len(reorg.BlocksInvolved), testCase.ExpectedResult.NumBlocks)
-	testutils.Pcheck("NumReplacedBlocks", reorg.NumReplacedBlocks, testCase.ExpectedResult.NumReplacedBlocks)
+	fmt.Println(reorg)
 
-	if testCase.ExpectedResult.MustBeLive {
-		testutils.Pcheck("MustBeLive", reorg.SeenLive, true)
-	}
-
-	fmt.Println(reorg.MermaidSyntax())
+	entry := database.NewReorgEntry(reorg)
+	db.AddReorgEntry(entry)
 }

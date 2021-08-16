@@ -1,4 +1,4 @@
-package main
+package testutils
 
 import (
 	"context"
@@ -72,15 +72,6 @@ func ReorgCheckAndPrint() []*monitor.Reorg {
 	}
 	fmt.Println("")
 	return reorgs
-}
-
-type ReorgTestResult struct {
-	MustBeLive        bool
-	StartBlock        uint64
-	EndBlock          uint64
-	Depth             int
-	NumBlocks         int
-	NumReplacedBlocks int
 }
 
 func GetBlockByHashStr(hashStr string) *types.Block {

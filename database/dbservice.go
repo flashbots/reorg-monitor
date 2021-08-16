@@ -59,12 +59,29 @@ func (s *DatabaseService) Close() {
 	s.DB.Close()
 }
 
-// /*
-//  * READ OPERATIONS
-//  */
+func (s *DatabaseService) ReorgEntry(key string) (entry ReorgEntry, err error) {
+	err = s.DB.Get(&entry, "SELECT * FROM reorgs WHERE Key=$1", key)
+	return entry, err
+}
+
 func (s *DatabaseService) BlockEntry(hash common.Hash) (entry BlockEntry, err error) {
 	err = s.DB.Get(&entry, "SELECT * FROM blocks_with_earnings WHERE BlockHash=$1", strings.ToLower(hash.Hex()))
 	return entry, err
+}
+
+func (s *DatabaseService) AddReorgEntry(entry ReorgEntry) error {
+	var count int
+	err := s.DB.QueryRow("SELECT COUNT(*) FROM reorgs WHERE Key = $1", entry.Key).Scan(&count)
+	if err != nil {
+		return err
+	}
+	if count > 0 { // already exists
+		return nil
+	}
+
+	// Insert
+	s.DB.MustExec("INSERT INTO reorgs (Key, NodeUri, SeenLive, StartBlockNumber, EndBlockNumber, Depth, NumBlocksInvolved, NumBlocksReplaced, MermaidSyntax) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", entry.Key, entry.NodeUri, entry.SeenLive, entry.StartBlockNumber, entry.EndBlockNumber, entry.Depth, entry.NumBlocksInvolved, entry.NumBlocksReplaced, entry.MermaidSyntax)
+	return nil
 }
 
 func (s *DatabaseService) AddBlockEntry(block BlockEntry) error {

@@ -2,6 +2,7 @@ package database
 
 import (
 	_ "github.com/lib/pq"
+	"github.com/metachris/eth-reorg-monitor/monitor"
 )
 
 var Schema = `
@@ -17,8 +18,7 @@ CREATE TABLE IF NOT EXISTS reorgs (
     Depth              integer NOT NULL,
     NumBlocksInvolved  integer NOT NULL,
     NumBlocksReplaced  integer NOT NULL,
-
-	MermaidSyntax text NOT NULL,
+    MermaidSyntax text NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS blocks_with_earnings (
@@ -43,6 +43,35 @@ CREATE TABLE IF NOT EXISTS blocks_with_earnings (
     CoinbaseDiffEth  DOUBLE PRECISION NOT NULL
 );
 `
+
+type ReorgEntry struct {
+	Id int
+
+	Key      string
+	NodeUri  string
+	SeenLive bool
+
+	StartBlockNumber  uint64
+	EndBlockNumber    uint64
+	Depth             int
+	NumBlocksInvolved int
+	NumBlocksReplaced int
+	MermaidSyntax     string
+}
+
+func NewReorgEntry(reorg *monitor.Reorg) ReorgEntry {
+	return ReorgEntry{
+		Key:               reorg.Id(),
+		NodeUri:           reorg.NodeUri,
+		SeenLive:          reorg.SeenLive,
+		StartBlockNumber:  reorg.StartBlockHeight,
+		EndBlockNumber:    reorg.EndBlockHeight,
+		Depth:             reorg.Depth,
+		NumBlocksInvolved: len(reorg.BlocksInvolved),
+		NumBlocksReplaced: reorg.NumReplacedBlocks,
+		MermaidSyntax:     reorg.MermaidSyntax(),
+	}
+}
 
 type BlockEntry struct {
 	Id              int

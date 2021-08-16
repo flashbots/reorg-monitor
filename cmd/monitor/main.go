@@ -7,22 +7,41 @@ import (
 	"os"
 	"strings"
 
+	"github.com/metachris/eth-reorg-monitor/database"
 	"github.com/metachris/eth-reorg-monitor/monitor"
 )
 
 var Reorgs map[string]*monitor.Reorg = make(map[string]*monitor.Reorg)
+var saveToDb = false
+var db *database.DatabaseService
+
 var ColorGreen = "\033[1;32m%s\033[0m"
+
+func getDbConfig() database.PostgresConfig {
+	return database.PostgresConfig{
+		User:       os.Getenv("DB_USER"),
+		Password:   os.Getenv("DB_PASS"),
+		Host:       os.Getenv("DB_HOST"),
+		Name:       os.Getenv("DB_NAME"),
+		DisableTLS: len(os.Getenv("DB_DISABLE_TLS")) > 0,
+	}
+}
 
 func main() {
 	log.SetOutput(os.Stdout)
 
 	ethUriPtr := flag.String("eth", os.Getenv("ETH_NODE"), "Geth node URI")
 	debugPtr := flag.Bool("debug", false, "print debug information")
-	// mermaidFile := flag.String("mermaid", "", "file")
+	saveToDbPtr := flag.Bool("db", false, "save reorgs to database")
 	flag.Parse()
 
 	if *ethUriPtr == "" {
 		log.Fatal("Missing eth node uri")
+	}
+
+	if *saveToDbPtr {
+		saveToDb = *saveToDbPtr
+		db = database.NewDatabaseService(getDbConfig())
 	}
 
 	// Handle reorgs from many monitors
@@ -53,6 +72,11 @@ func handleReorg(reorg *monitor.Reorg) {
 
 	if reorg.Depth > 1 {
 		fmt.Println(reorg.MermaidSyntax())
+	}
+
+	if saveToDb {
+		entry := database.NewReorgEntry(reorg)
+		db.AddReorgEntry(entry)
 	}
 
 	// Todo:

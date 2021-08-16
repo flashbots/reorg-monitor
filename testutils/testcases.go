@@ -1,4 +1,19 @@
-package main
+package testutils
+
+type TestCase struct {
+	Name           string
+	BlockInfo      []string
+	ExpectedResult ReorgTestResult
+}
+
+type ReorgTestResult struct {
+	MustBeLive        bool
+	StartBlock        uint64
+	EndBlock          uint64
+	Depth             int
+	NumBlocks         int
+	NumReplacedBlocks int
+}
 
 /*
 Interesting reorgs for tests:
