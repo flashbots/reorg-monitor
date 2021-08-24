@@ -39,7 +39,6 @@ Notes:
 
 ## TODO
 
-* Limit memory growth by pruning old blocks.
 * Add `seenLive` to block db entries.
 
 ---

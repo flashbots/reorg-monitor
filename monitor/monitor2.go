@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -45,10 +46,13 @@ func NewBlock(block *types.Block, origin BlockOrigin, nodeUri string) *Block {
 }
 
 func (block *Block) String() string {
-	return fmt.Sprintf("Block %d %s \t tx: %3d, uncles: %d", block.Number, block.Hash, len(block.Block.Transactions()), len(block.Block.Uncles()))
+	t := time.Unix(int64(block.Block.Time()), 0).UTC()
+	return fmt.Sprintf("Block %d %s \t %s \t tx: %3d, uncles: %d", block.Number, block.Hash, t, len(block.Block.Transactions()), len(block.Block.Uncles()))
 }
 
-type ReorgMonitor2 struct { // monitor one node
+type ReorgMonitor2 struct {
+	maxBlocksInCache int
+
 	clients map[string]*ethclient.Client
 	verbose bool
 
@@ -64,6 +68,8 @@ type ReorgMonitor2 struct { // monitor one node
 
 func NewReorgMonitor2(verbose bool) *ReorgMonitor2 {
 	return &ReorgMonitor2{
+		maxBlocksInCache: 1000,
+
 		verbose: verbose,
 		clients: make(map[string]*ethclient.Client),
 
@@ -123,7 +129,7 @@ func (mon *ReorgMonitor2) SubscribeAndStart(reorgChan chan<- *Reorg2) error {
 	for block := range mon.NewBlockChannel {
 		mon.AddBlock(block)
 
-		completedReorgs := mon.CheckForCompletedReorgs(200, 2)
+		completedReorgs := mon.CheckForCompletedReorgs(0, 2)
 		for _, reorg := range completedReorgs {
 			reorgId := reorg.Id()
 
@@ -182,7 +188,25 @@ func (mon *ReorgMonitor2) AddBlock(block *Block) bool {
 		mon.CheckBlockForReferences(block)
 	}
 
+	mon.TrimCache()
 	return true
+}
+
+func (mon *ReorgMonitor2) TrimCache() {
+	for currentHeight := mon.EarliestBlockNumber; currentHeight < mon.LatestBlockNumber; currentHeight++ {
+		mon.EarliestBlockNumber = currentHeight
+
+		if len(mon.BlockByHash) < mon.maxBlocksInCache {
+			return
+		}
+
+		blocks := mon.BlocksByHeight[currentHeight]
+		for hash := range blocks {
+			delete(mon.BlockByHash, hash)
+		}
+
+		delete(mon.BlocksByHeight, currentHeight)
+	}
 }
 
 func (mon *ReorgMonitor2) CheckBlockForReferences(block *Block) error {

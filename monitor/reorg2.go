@@ -44,7 +44,7 @@ func (r *Reorg2) Id() string {
 
 func (r *Reorg2) String() string {
 	nodeUris := reflect.ValueOf(r.NodesInvolved).MapKeys()
-	return fmt.Sprintf("Reorg %s: live=%-6v blocks %d - %d, depth: %d, lenMainChain: %d, numBlocks: %d, replacedBlocks: %d, nodesInvolved: %v", r.Id(), r.SeenLive, r.StartBlockHeight, r.EndBlockHeight, r.Depth, len(r.MainChain), len(r.BlocksInvolved), r.NumReplacedBlocks, nodeUris)
+	return fmt.Sprintf("Reorg2 %s: live=%-6v blocks %d - %d, depth: %d, lenMainChain: %d, numBlocks: %d, replacedBlocks: %d, nodesInvolved: %v", r.Id(), r.SeenLive, r.StartBlockHeight, r.EndBlockHeight, r.Depth, len(r.MainChain), len(r.BlocksInvolved), r.NumReplacedBlocks, nodeUris)
 }
 
 func (r *Reorg2) GetMainChainHashes() []string {
@@ -88,9 +88,9 @@ func (r *Reorg2) Finalize(firstBlockWithoutSiblings *Block) {
 	r.IsCompleted = true
 	r.FirstBlockAfterReorg = firstBlockWithoutSiblings
 
+	// Find canonical mainchain
 	r.MainChain = make([]*Block, 0)
 	r.MainChainHashes = make(map[common.Hash]bool)
-	r.NodesInvolved = make(map[string]bool)
 
 	curBlockHash := firstBlockWithoutSiblings.ParentHash // start from last block in reorg and work backwards until start
 	for {
@@ -106,14 +106,17 @@ func (r *Reorg2) Finalize(firstBlockWithoutSiblings *Block) {
 
 		r.MainChain = append(r.MainChain, block)
 		r.MainChainHashes[block.Hash] = true
-		r.NodesInvolved[block.NodeUri] = true
-
 		curBlockHash = block.ParentHash
 	}
 
 	// Reverse the array, so earliest block comes first
 	for i, j := 0, len(r.MainChain)-1; i < j; i, j = i+1, j-1 {
 		r.MainChain[i], r.MainChain[j] = r.MainChain[j], r.MainChain[i]
+	}
+
+	// Find all involved nodes
+	for _, block := range r.BlocksInvolved {
+		r.NodesInvolved[block.NodeUri] = true
 	}
 
 	r.NumReplacedBlocks = len(r.BlocksInvolved) - len(r.MainChain)
