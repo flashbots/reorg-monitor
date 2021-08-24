@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/metachris/eth-reorg-monitor/database"
 	"github.com/metachris/eth-reorg-monitor/monitor"
 	"github.com/metachris/eth-reorg-monitor/reorgutils"
@@ -17,7 +16,7 @@ import (
 var saveToDb = false
 var simulateBlocksWithMevGeth = false
 
-var Reorgs map[string]*monitor.Reorg = make(map[string]*monitor.Reorg)
+var Reorgs map[string]*monitor.Reorg2 = make(map[string]*monitor.Reorg2)
 var db *database.DatabaseService
 var rpc *flashbotsrpc.FlashbotsRPC
 
@@ -66,7 +65,7 @@ func main() {
 	}
 
 	// Handle reorgs from many monitors
-	reorgChan := make(chan *monitor.Reorg)
+	reorgChan := make(chan *monitor.Reorg2)
 	go func() {
 		for reorg := range reorgChan {
 			handleReorg(reorg)
@@ -75,15 +74,20 @@ func main() {
 
 	// Start a monitor
 	mon := monitor.NewReorgMonitor2(true)
+
 	err := mon.ConnectGethInstance(*ethUriPtr)
 	reorgutils.Perror(err)
-	err = mon.ConnectGethInstance("ws://162.55.96.141:8547")
+
+	err = mon.ConnectGethInstance(os.Getenv("ETH_NODE2"))
 	reorgutils.Perror(err)
+
+	// err = mon.ConnectGethInstance(os.Getenv("ETH_NODE3"))
+	// reorgutils.Perror(err)
 
 	mon.SubscribeAndStart(reorgChan)
 }
 
-func handleReorg(reorg *monitor.Reorg) {
+func handleReorg(reorg *monitor.Reorg2) {
 	_, found := Reorgs[reorg.Id()]
 	if found {
 		return
@@ -96,37 +100,37 @@ func handleReorg(reorg *monitor.Reorg) {
 	fmt.Println("- mainchain:", strings.Join(reorg.GetMainChainHashes(), ", "))
 	fmt.Println("- discarded:", strings.Join(reorg.GetReplacedBlockHashes(), ", "))
 
-	if saveToDb {
-		entry := database.NewReorgEntry(reorg)
-		err := db.AddReorgEntry(entry)
-		if err != nil {
-			log.Println("err at db.AddReorgEntry:", err)
-		}
-	}
+	// if saveToDb {
+	// 	entry := database.NewReorgEntry(reorg)
+	// 	err := db.AddReorgEntry(entry)
+	// 	if err != nil {
+	// 		log.Println("err at db.AddReorgEntry:", err)
+	// 	}
+	// }
 
-	if simulateBlocksWithMevGeth {
-		privateKey, _ := crypto.GenerateKey()
+	// if simulateBlocksWithMevGeth {
+	// 	privateKey, _ := crypto.GenerateKey()
 
-		for _, block := range reorg.BlocksInvolved {
-			res, err := rpc.FlashbotsSimulateBlock(privateKey, block, 0)
-			if err != nil {
-				log.Println("error: sim failed of block", block.Hash(), "-", err)
-			} else {
-				fmt.Printf("- sim of block %s: CoinbaseDiff=%20s, GasFees=%20s, EthSentToCoinbase=%20s\n", block.Hash(), res.CoinbaseDiff, res.GasFees, res.EthSentToCoinbase)
-			}
+	// 	for _, block := range reorg.BlocksInvolved {
+	// 		res, err := rpc.FlashbotsSimulateBlock(privateKey, block, 0)
+	// 		if err != nil {
+	// 			log.Println("error: sim failed of block", block.Hash(), "-", err)
+	// 		} else {
+	// 			fmt.Printf("- sim of block %s: CoinbaseDiff=%20s, GasFees=%20s, EthSentToCoinbase=%20s\n", block.Hash(), res.CoinbaseDiff, res.GasFees, res.EthSentToCoinbase)
+	// 		}
 
-			if saveToDb {
-				response := &res
-				if err != nil {
-					response = nil
-				}
-				blockEntry := database.NewBlockEntry(block, reorg, response)
-				db.AddBlockEntry(blockEntry)
-			}
-		}
-	}
+	// 		if saveToDb {
+	// 			response := &res
+	// 			if err != nil {
+	// 				response = nil
+	// 			}
+	// 			blockEntry := database.NewBlockEntry(block, reorg, response)
+	// 			db.AddBlockEntry(blockEntry)
+	// 		}
+	// 	}
+	// }
 
-	if reorg.Depth > 1 {
+	if reorg.NumReplacedBlocks > 1 {
 		fmt.Println(reorg.MermaidSyntax())
 		fmt.Println("")
 	}

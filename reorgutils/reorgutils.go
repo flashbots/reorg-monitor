@@ -48,3 +48,10 @@ func WeiToEth(wei *big.Int) (ethValue *big.Float) {
 	ethValue = new(big.Float).Quo(fbalance, big.NewFloat(1e18))
 	return
 }
+
+var ColorGreen = "\033[1;32m%s\033[0m"
+
+func ColorPrintf(color string, format string, a ...interface{}) {
+	str := fmt.Sprintf(format, a...)
+	fmt.Printf(string(color), str)
+}
