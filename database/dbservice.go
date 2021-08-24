@@ -51,7 +51,8 @@ func NewDatabaseService(cfg PostgresConfig) *DatabaseService {
 }
 
 func (s *DatabaseService) Reset() {
-	s.DB.MustExec(`DROP TABLE "blocks_with_earnings";`)
+	s.DB.MustExec(`DROP TABLE "reorg_summary";`)
+	s.DB.MustExec(`DROP TABLE "reorg_block";`)
 	s.DB.MustExec(Schema)
 }
 
@@ -60,18 +61,18 @@ func (s *DatabaseService) Close() {
 }
 
 func (s *DatabaseService) ReorgEntry(key string) (entry ReorgEntry, err error) {
-	err = s.DB.Get(&entry, "SELECT * FROM reorgs WHERE Key=$1", key)
+	err = s.DB.Get(&entry, "SELECT * FROM reorg_summary WHERE Key=$1", key)
 	return entry, err
 }
 
 func (s *DatabaseService) BlockEntry(hash common.Hash) (entry BlockEntry, err error) {
-	err = s.DB.Get(&entry, "SELECT * FROM blocks_with_earnings WHERE BlockHash=$1", strings.ToLower(hash.Hex()))
+	err = s.DB.Get(&entry, "SELECT * FROM reorg_block WHERE BlockHash=$1", strings.ToLower(hash.Hex()))
 	return entry, err
 }
 
 func (s *DatabaseService) AddReorgEntry(entry ReorgEntry) error {
 	var count int
-	err := s.DB.QueryRow("SELECT COUNT(*) FROM reorgs WHERE Key = $1", entry.Key).Scan(&count)
+	err := s.DB.QueryRow("SELECT COUNT(*) FROM reorg_summary WHERE Key = $1", entry.Key).Scan(&count)
 	if err != nil {
 		return err
 	}
@@ -80,13 +81,13 @@ func (s *DatabaseService) AddReorgEntry(entry ReorgEntry) error {
 	}
 
 	// Insert
-	_, err = s.DB.Exec("INSERT INTO reorgs (Key, NodeUri, SeenLive, StartBlockNumber, EndBlockNumber, Depth, NumBlocksInvolved, NumBlocksReplaced, MermaidSyntax) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", entry.Key, entry.NodeUri, entry.SeenLive, entry.StartBlockNumber, entry.EndBlockNumber, entry.Depth, entry.NumBlocksInvolved, entry.NumBlocksReplaced, entry.MermaidSyntax)
+	_, err = s.DB.Exec("INSERT INTO reorg_summary (Key, NodeUri, SeenLive, StartBlockNumber, EndBlockNumber, Depth, NumBlocksInvolved, NumBlocksReplaced, MermaidSyntax) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", entry.Key, entry.NodeUri, entry.SeenLive, entry.StartBlockNumber, entry.EndBlockNumber, entry.Depth, entry.NumBlocksInvolved, entry.NumBlocksReplaced, entry.MermaidSyntax)
 	return err
 }
 
 func (s *DatabaseService) AddBlockEntry(entry BlockEntry) error {
 	var count int
-	err := s.DB.QueryRow("SELECT COUNT(*) FROM blocks_with_earnings WHERE BlockHash = $1", strings.ToLower(entry.BlockHash)).Scan(&count)
+	err := s.DB.QueryRow("SELECT COUNT(*) FROM reorg_block WHERE BlockHash = $1", strings.ToLower(entry.BlockHash)).Scan(&count)
 	if err != nil {
 		return err
 	}
@@ -95,7 +96,7 @@ func (s *DatabaseService) AddBlockEntry(entry BlockEntry) error {
 	}
 
 	// Insert
-	_, err = s.DB.Exec("INSERT INTO blocks_with_earnings (Reorg_Key, BlockNumber, BlockHash, ParentHash, BlockTimestamp, CoinbaseAddress, Difficulty, NumUncles, NumTx, IsPartOfReorg, IsMainChain, IsUncle, IsChild, MevGeth_CoinbaseDiffEth, MevGeth_CoinbaseDiffWei, MevGeth_GasFeesWei, MevGeth_EthSentToCoinbaseWei, MevGeth_EthSentToCoinbase) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)",
+	_, err = s.DB.Exec("INSERT INTO reorg_block (Reorg_Key, BlockNumber, BlockHash, ParentHash, BlockTimestamp, CoinbaseAddress, Difficulty, NumUncles, NumTx, IsPartOfReorg, IsMainChain, IsUncle, IsChild, MevGeth_CoinbaseDiffEth, MevGeth_CoinbaseDiffWei, MevGeth_GasFeesWei, MevGeth_EthSentToCoinbaseWei, MevGeth_EthSentToCoinbase) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)",
 		entry.Reorg_Key, entry.BlockNumber, entry.BlockHash, entry.ParentHash, entry.BlockTimestamp, entry.CoinbaseAddress, entry.Difficulty, entry.NumUncles, entry.NumTx, entry.IsPartOfReorg, entry.IsMainChain, entry.IsUncle, entry.IsChild, entry.MevGeth_CoinbaseDiffEth, entry.MevGeth_CoinbaseDiffWei, entry.MevGeth_GasFeesWei, entry.MevGeth_EthSentToCoinbaseWei, entry.MevGeth_EthSentToCoinbase)
 	return err
 }

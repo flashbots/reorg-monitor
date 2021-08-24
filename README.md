@@ -2,38 +2,45 @@
 
 Detect Ethereum reorgs with the depth, and print replaced and new blocks.
 
+* Can save reorg summaries and block info in a Postgres database
+* Can query a mev-geth instance for block value
+
 ---
 
-## Installation
+## Getting started
 
-You can either clone this repository or build and install it like this:
+* Clone this repository
+* Create a `.env` file based on `.env.example`
+* Start the monitor
 
 
 ```bash
-TODO
-$ go install github.com/metachris/eth-reorg-monitor/cmd/monitor@latest
-$ eth-reorg-monitor -help
-Usage of eth-reorg-monitor:
+$ go run cmd/monitor/main.go -h
+  -db
+        save reorgs to database
+  -debug
+        print debug information
   -eth string
-    	Geth node URI
-  -mindepth int
-    	minimum reorg depth to notify (default 1)
-  -silent
-    	only print alerts, no info about every block
+        Geth node URI
+  -mevgeth string
+        mev-geth node URI
+  -sim
+        simulate blocks in mev-geth
 ```
-
-## Usage
 
 The code needs a subscription to a geth node, either a local IPC connection or a `ws://` URI.
 You can set the geth node with `-eth <geth_node_url>` or use an `ETH_NODE` environment variable.
 
-Note: You can find more infos about the children of uncles via AlchemyApi: https://composer.alchemyapi.io/
+Notes: 
+
+* You can find more infos about the children of uncles via AlchemyApi: https://composer.alchemyapi.io/
 
 ---
 
 ## TODO
 
 * Limit memory growth by pruning old blocks.
+* Add `seenLive` to block db entries.
 
 ---
 
@@ -51,3 +58,8 @@ Mermaid:
 
 * https://mermaid-js.github.io/mermaid/#/stateDiagram
 * https://mermaid-js.github.io/mermaid-live-editor
+
+
+See also:
+
+* https://etherscan.io/blocks_forked
