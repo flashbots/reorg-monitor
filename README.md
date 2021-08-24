@@ -4,6 +4,7 @@ Detect Ethereum reorgs with the depth, and print replaced and new blocks.
 
 * Can save reorg summaries and block info in a Postgres database
 * Can query a mev-geth instance for block value
+* Can monitor multiple geth nodes at once (the more the better)
 
 ---
 
