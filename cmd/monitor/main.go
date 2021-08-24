@@ -77,15 +77,24 @@ func main() {
 	// Start a monitor
 	mon := monitor.NewReorgMonitor(true)
 
+	// Connect to first geth instance
 	err := mon.ConnectGethInstance(*ethUriPtr)
 	reorgutils.Perror(err)
 
-	err = mon.ConnectGethInstance(os.Getenv("ETH_NODE2"))
-	reorgutils.Perror(err)
+	// Connect to further ones
+	cnt := 2
+	for {
+		nodeUri := os.Getenv(fmt.Sprintf("ETH_NODE%d", cnt))
+		if nodeUri == "" {
+			break
+		}
 
-	// err = mon.ConnectGethInstance(os.Getenv("ETH_NODE3"))
-	// reorgutils.Perror(err)
+		err = mon.ConnectGethInstance(nodeUri)
+		reorgutils.Perror(err)
+		cnt += 1
+	}
 
+	// Run
 	mon.SubscribeAndStart(reorgChan)
 }
 

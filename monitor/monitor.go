@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -52,6 +53,7 @@ func (block *Block) String() string {
 
 type ReorgMonitor struct {
 	maxBlocksInCache int
+	addBlockLock     sync.Mutex
 
 	clients map[string]*ethclient.Client
 	verbose bool
@@ -85,7 +87,7 @@ func (mon *ReorgMonitor) String() string {
 }
 
 func (mon *ReorgMonitor) ConnectGethInstance(nodeUri string) error {
-	fmt.Printf("[%s] Connecting to geth node...", nodeUri)
+	fmt.Printf("[%25s] Connecting to geth node...", nodeUri)
 	client, err := ethclient.Dial(nodeUri)
 	if err != nil {
 		return err
@@ -146,21 +148,21 @@ func (mon *ReorgMonitor) SubscribeAndStart(reorgChan chan<- *Reorg) error {
 	return nil
 }
 
-// AddBlock adds a block to history if it hasn't been seen before. Also will query and download
-// the chain of parents if not found
+// AddBlock adds a block to history if it hasn't been seen before, and download unknown referenced blocks (parent, uncles).
 func (mon *ReorgMonitor) AddBlock(block *Block) bool {
-	knownBlock, isKnown := mon.BlockByHash[block.Hash]
+	// Use a lock to make sure this happens one-at-a-time
+	mon.addBlockLock.Lock()
+	defer mon.addBlockLock.Unlock()
 
-	// Do nothing if block is known and not via uncle
+	// If known, then only overwrite if known was by uncle
+	knownBlock, isKnown := mon.BlockByHash[block.Hash]
 	if isKnown && knownBlock.Origin != OriginUncle {
-		// blockInfo := fmt.Sprintf("[%25s] Add%s \t %-12s \t %s", block.NodeUri, block.String(), block.Origin, mon)
-		// fmt.Println(blockInfo)
 		return false
 	}
 
+	// Print
 	blockInfo := fmt.Sprintf("[%25s] Add%s \t %-12s \t %s\n", block.NodeUri, block.String(), block.Origin, mon)
 	fmt.Print(blockInfo)
-	// ColorPrintf(ColorGreen, blockInfo)
 
 	// Add for access by hash
 	mon.BlockByHash[block.Hash] = block
@@ -213,7 +215,7 @@ func (mon *ReorgMonitor) CheckBlockForReferences(block *Block) error {
 	// Check parent
 	_, found := mon.BlockByHash[block.ParentHash]
 	if !found {
-		fmt.Printf("- parent of %d %s not found (%s), downloading...\n", block.Number, block.Hash, block.ParentHash)
+		// fmt.Printf("- parent of %d %s not found (%s), downloading...\n", block.Number, block.Hash, block.ParentHash)
 		_, _, err := mon.EnsureBlock(block.ParentHash, OriginGetParent, block.NodeUri)
 		if err != nil {
 			return errors.Wrap(err, "get-parent error")
@@ -222,7 +224,7 @@ func (mon *ReorgMonitor) CheckBlockForReferences(block *Block) error {
 
 	// Check uncles
 	for _, uncleHeader := range block.Block.Uncles() {
-		fmt.Printf("- block %d %s has uncle: %s\n", block.Number, block.Hash, uncleHeader.Hash())
+		// fmt.Printf("- block %d %s has uncle: %s\n", block.Number, block.Hash, uncleHeader.Hash())
 		_, _, err := mon.EnsureBlock(uncleHeader.Hash(), OriginUncle, block.NodeUri)
 		if err != nil {
 			return errors.Wrap(err, "get-uncle error")
@@ -241,7 +243,7 @@ func (mon *ReorgMonitor) EnsureBlock(blockHash common.Hash, origin BlockOrigin, 
 		return block, true, nil
 	}
 
-	fmt.Printf("- block with hash %s not found, downloading from %s...\n", blockHash, nodeUri)
+	fmt.Printf("- block %s not found, downloading from %s...\n", blockHash, nodeUri)
 	client := mon.clients[nodeUri]
 	ethBlock, err := client.BlockByHash(context.Background(), blockHash)
 	if err != nil {
@@ -250,7 +252,6 @@ func (mon *ReorgMonitor) EnsureBlock(blockHash common.Hash, origin BlockOrigin, 
 	}
 
 	block = NewBlock(ethBlock, origin, nodeUri)
-	fmt.Println("-->", blockHash)
 	mon.AddBlock(block)
 	return block, false, nil
 }
