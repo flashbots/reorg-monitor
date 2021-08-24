@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS reorg_block (
     Reorg_Key VARCHAR (40) REFERENCES reorg_summary (Key) NOT NULL,
 
     Origin        VARCHAR (20) NOT NULL,
-    NodeUri       VARCHAR (100) NOT NULL,
+    NodeUri       text NOT NULL,
 
     BlockNumber     integer NOT NULL,
     BlockHash       text NOT NULL,
@@ -73,7 +73,7 @@ type ReorgEntry struct {
 	MermaidSyntax     string
 }
 
-func NewReorgEntry(reorg *monitor.Reorg2) ReorgEntry {
+func NewReorgEntry(reorg *monitor.Reorg) ReorgEntry {
 	return ReorgEntry{
 		Key:               reorg.Id(),
 		SeenLive:          reorg.SeenLive,
@@ -117,7 +117,7 @@ type BlockEntry struct {
 	MevGeth_EthSentToCoinbase string
 }
 
-func NewBlockEntry(block *monitor.Block, reorg *monitor.Reorg2) BlockEntry {
+func NewBlockEntry(block *monitor.Block, reorg *monitor.Reorg) BlockEntry {
 	_, isPartOfReorg := reorg.BlocksInvolved[block.Hash]
 	_, isMainChain := reorg.MainChainHashes[block.Hash]
 	isUncle := !isMainChain && block.Number == reorg.StartBlockHeight
