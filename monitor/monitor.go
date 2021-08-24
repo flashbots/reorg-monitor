@@ -4,114 +4,228 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/metachris/eth-reorg-monitor/reorgutils"
-	"github.com/pkg/errors"
 )
 
-type ReorgMonitor struct { // monitor one node
-	client  *ethclient.Client
-	debug   bool
+type BlockOrigin string
+
+const (
+	OriginSubscription BlockOrigin = "Subscription"
+	OriginGetParent    BlockOrigin = "GetParent"
+	OriginUncle        BlockOrigin = "Uncle"
+)
+
+// Block is an geth Block and information about where it came from
+type Block struct {
+	Block   *types.Block
+	Origin  BlockOrigin
+	NodeUri string
+
+	// some helpers
+	Number     uint64
+	Hash       common.Hash
+	ParentHash common.Hash
+}
+
+func NewBlock(block *types.Block, origin BlockOrigin, nodeUri string) *Block {
+	return &Block{
+		Block:   block,
+		Origin:  origin,
+		NodeUri: nodeUri,
+
+		Number:     block.NumberU64(),
+		Hash:       block.Hash(),
+		ParentHash: block.ParentHash(),
+	}
+}
+
+func (block *Block) String() string {
+	t := time.Unix(int64(block.Block.Time()), 0).UTC()
+	return fmt.Sprintf("Block %d %s \t %s \t tx: %3d, uncles: %d", block.Number, block.Hash, t, len(block.Block.Transactions()), len(block.Block.Uncles()))
+}
+
+type ReorgMonitor struct {
+	maxBlocksInCache int
+
+	clients map[string]*ethclient.Client
 	verbose bool
 
-	nodeUri string
-
-	BlockByHash    map[common.Hash]*types.Block
-	BlocksByHeight map[uint64][]*types.Block
+	NewBlockChannel chan (*Block)
+	BlockByHash     map[common.Hash]*Block
+	BlocksByHeight  map[uint64]map[common.Hash]*Block
 
 	EarliestBlockNumber uint64
 	LatestBlockNumber   uint64
 
-	Reorgs            map[string]*Reorg
-	BlockViaUncleInfo map[common.Hash]bool // true if that block was not seen live but rather seen through uncle information of child block. Used to know if we saw a reorg live
+	Reorgs map[string]*Reorg
 }
 
-func NewReorgMonitor(ethNodeUri string, debug bool, verbose bool) *ReorgMonitor {
-	// Connect to geth node
-	fmt.Printf("[%s] Connecting to node...", ethNodeUri)
-	client, err := ethclient.Dial(ethNodeUri)
-	reorgutils.Perror(err)
-	fmt.Printf(" ok\n")
-
+func NewReorgMonitor(verbose bool) *ReorgMonitor {
 	return &ReorgMonitor{
-		client:  client,
-		debug:   debug,
-		verbose: verbose,
-		nodeUri: ethNodeUri,
+		maxBlocksInCache: 1000,
 
-		BlockByHash:       make(map[common.Hash]*types.Block),
-		BlocksByHeight:    make(map[uint64][]*types.Block),
-		Reorgs:            make(map[string]*Reorg),
-		BlockViaUncleInfo: make(map[common.Hash]bool),
+		verbose: verbose,
+		clients: make(map[string]*ethclient.Client),
+
+		NewBlockChannel: make(chan *Block),
+		BlockByHash:     make(map[common.Hash]*Block),
+		BlocksByHeight:  make(map[uint64]map[common.Hash]*Block),
+		Reorgs:          make(map[string]*Reorg),
 	}
 }
 
 func (mon *ReorgMonitor) String() string {
-	return fmt.Sprintf("ReorgMonitor[%s]: %d - %d, %d blocks", mon.nodeUri, mon.EarliestBlockNumber, mon.LatestBlockNumber, len(mon.BlockByHash))
+	return fmt.Sprintf("ReorgMonitor: %d - %d, %d blocks", mon.EarliestBlockNumber, mon.LatestBlockNumber, len(mon.BlockByHash))
 }
 
-func (mon *ReorgMonitor) DebugPrintln(a ...interface{}) {
-	if mon.debug {
-		fmt.Println(a...)
+func (mon *ReorgMonitor) ConnectGethInstance(nodeUri string) error {
+	fmt.Printf("[%s] Connecting to geth node...", nodeUri)
+	client, err := ethclient.Dial(nodeUri)
+	if err != nil {
+		return err
 	}
+
+	fmt.Printf(" ok\n")
+	mon.clients[nodeUri] = client
+	return nil
+}
+
+func (mon *ReorgMonitor) SubscribeAndStart(reorgChan chan<- *Reorg) error {
+	// Subscribe to new blocks from all clients
+	for clientNodeUri, client := range mon.clients {
+		headers := make(chan *types.Header)
+		sub, err := client.SubscribeNewHead(context.Background(), headers)
+		if err != nil {
+			return err
+		}
+
+		go func(_client *ethclient.Client, nodeUri string) {
+			for {
+				select {
+				case err := <-sub.Err():
+					fmt.Printf("Subscription error on node %s: %v\n", nodeUri, err)
+				case header := <-headers:
+					// Fetch full block information from same client
+					ethBlock, err := _client.BlockByHash(context.Background(), header.Hash())
+					if err != nil {
+						log.Println("newHeader -> getBlockByHash error", err)
+						continue
+					}
+
+					// Add the block
+					newBlock := NewBlock(ethBlock, OriginSubscription, nodeUri)
+					mon.NewBlockChannel <- newBlock
+				}
+			}
+		}(client, clientNodeUri)
+	}
+
+	for block := range mon.NewBlockChannel {
+		mon.AddBlock(block)
+
+		completedReorgs := mon.CheckForCompletedReorgs(0, 2)
+		for _, reorg := range completedReorgs {
+			reorgId := reorg.Id()
+
+			// If we have a yet unknown reorg, send to channel
+			_, found := mon.Reorgs[reorgId]
+			if !found {
+				// log.Println("New completed reorg found:", reorg.String())
+				mon.Reorgs[reorgId] = reorg
+				reorgChan <- reorg
+			}
+		}
+	}
+
+	return nil
 }
 
 // AddBlock adds a block to history if it hasn't been seen before. Also will query and download
 // the chain of parents if not found
-func (mon *ReorgMonitor) AddBlock(block *types.Block, info string) error {
-	_, knownBlock := mon.BlockByHash[block.Hash()]
-	if knownBlock {
-		return nil
+func (mon *ReorgMonitor) AddBlock(block *Block) bool {
+	knownBlock, isKnown := mon.BlockByHash[block.Hash]
+
+	// Do nothing if block is known and not via uncle
+	if isKnown && knownBlock.Origin != OriginUncle {
+		// blockInfo := fmt.Sprintf("[%25s] Add%s \t %-12s \t %s", block.NodeUri, block.String(), block.Origin, mon)
+		// fmt.Println(blockInfo)
+		return false
 	}
 
-	blockInfo := fmt.Sprintf("[%s] Add%s \t %-12s \t %s", mon.nodeUri, reorgutils.SprintBlock(block), info, mon)
-	fmt.Println(blockInfo)
+	blockInfo := fmt.Sprintf("[%25s] Add%s \t %-12s \t %s\n", block.NodeUri, block.String(), block.Origin, mon)
+	fmt.Print(blockInfo)
+	// ColorPrintf(ColorGreen, blockInfo)
 
 	// Add for access by hash
-	mon.BlockByHash[block.Hash()] = block
+	mon.BlockByHash[block.Hash] = block
 
 	// Create array of blocks at this height, if necessary
-	if _, found := mon.BlocksByHeight[block.NumberU64()]; !found {
-		mon.BlocksByHeight[block.NumberU64()] = make([]*types.Block, 0)
+	if _, found := mon.BlocksByHeight[block.Number]; !found {
+		mon.BlocksByHeight[block.Number] = make(map[common.Hash]*Block)
 	}
 
-	// Add to array of blocks at this height
-	mon.BlocksByHeight[block.NumberU64()] = append(mon.BlocksByHeight[block.NumberU64()], block)
+	// Add to map of blocks at this height
+	mon.BlocksByHeight[block.Number][block.Hash] = block
 
 	// Set earliest block
-	if mon.EarliestBlockNumber == 0 {
-		mon.EarliestBlockNumber = block.NumberU64()
+	if mon.EarliestBlockNumber == 0 || block.Number < mon.EarliestBlockNumber {
+		mon.EarliestBlockNumber = block.Number
 	}
 
 	// Set latest block
-	if mon.LatestBlockNumber < block.NumberU64() {
-		mon.LatestBlockNumber = block.NumberU64()
+	if block.Number > mon.LatestBlockNumber {
+		mon.LatestBlockNumber = block.Number
 	}
 
-	if block.NumberU64() > mon.EarliestBlockNumber { // check backhistory only if we are past the earliest block
-		// Check and potentially download parent (back until start of monitoring)
-		_, found := mon.BlockByHash[block.ParentHash()]
-		if !found {
-			mon.DebugPrintln(fmt.Sprintf("- parent of %d %s not found (%s), downloading...", block.NumberU64(), block.Hash(), block.ParentHash()))
-			_, _, err := mon.EnsureBlock(block.ParentHash(), "get-parent")
-			if err != nil {
-				return errors.Wrap(err, "get unknown parent error")
-			}
+	// Check if further blocks can be downloaded from this one
+	if block.Number > mon.EarliestBlockNumber { // check backhistory only if we are past the earliest block
+		mon.CheckBlockForReferences(block)
+	}
+
+	mon.TrimCache()
+	return true
+}
+
+func (mon *ReorgMonitor) TrimCache() {
+	for currentHeight := mon.EarliestBlockNumber; currentHeight < mon.LatestBlockNumber; currentHeight++ {
+		mon.EarliestBlockNumber = currentHeight
+
+		if len(mon.BlockByHash) < mon.maxBlocksInCache {
+			return
 		}
 
-		// Check uncles
-		for _, uncleHeader := range block.Uncles() {
-			mon.DebugPrintln(fmt.Sprintf("- block %d %s has uncle: %s", block.NumberU64(), block.Hash(), uncleHeader.Hash()))
-			_, existed, err := mon.EnsureBlock(uncleHeader.Hash(), "get-uncle")
-			if err != nil {
-				return errors.Wrap(err, "get uncle error")
-			}
-			if !existed {
-				mon.BlockViaUncleInfo[uncleHeader.Hash()] = true
-			}
+		blocks := mon.BlocksByHeight[currentHeight]
+		for hash := range blocks {
+			delete(mon.BlockByHash, hash)
+		}
+
+		delete(mon.BlocksByHeight, currentHeight)
+	}
+}
+
+func (mon *ReorgMonitor) CheckBlockForReferences(block *Block) error {
+	// Check parent
+	_, found := mon.BlockByHash[block.ParentHash]
+	if !found {
+		fmt.Printf("- parent of %d %s not found (%s), downloading...\n", block.Number, block.Hash, block.ParentHash)
+		_, _, err := mon.EnsureBlock(block.ParentHash, OriginGetParent, block.NodeUri)
+		if err != nil {
+			return errors.Wrap(err, "get-parent error")
+		}
+	}
+
+	// Check uncles
+	for _, uncleHeader := range block.Block.Uncles() {
+		fmt.Printf("- block %d %s has uncle: %s\n", block.Number, block.Hash, uncleHeader.Hash())
+		_, _, err := mon.EnsureBlock(uncleHeader.Hash(), OriginUncle, block.NodeUri)
+		if err != nil {
+			return errors.Wrap(err, "get-uncle error")
 		}
 	}
 
@@ -119,7 +233,7 @@ func (mon *ReorgMonitor) AddBlock(block *types.Block, info string) error {
 	return nil
 }
 
-func (mon *ReorgMonitor) EnsureBlock(blockHash common.Hash, info string) (block *types.Block, alreadyExisted bool, err error) {
+func (mon *ReorgMonitor) EnsureBlock(blockHash common.Hash, origin BlockOrigin, nodeUri string) (block *Block, alreadyExisted bool, err error) {
 	// Check and potentially download block
 	var found bool
 	block, found = mon.BlockByHash[blockHash]
@@ -127,56 +241,18 @@ func (mon *ReorgMonitor) EnsureBlock(blockHash common.Hash, info string) (block 
 		return block, true, nil
 	}
 
-	mon.DebugPrintln(fmt.Sprintf("- block with hash %s not found, downloading...", blockHash))
-	block, err = mon.client.BlockByHash(context.Background(), blockHash)
+	fmt.Printf("- block with hash %s not found, downloading from %s...\n", blockHash, nodeUri)
+	client := mon.clients[nodeUri]
+	ethBlock, err := client.BlockByHash(context.Background(), blockHash)
 	if err != nil {
+		fmt.Println("- err block not found:", blockHash, err)
 		return nil, false, errors.Wrap(err, "EnsureBlock error")
 	}
 
-	mon.AddBlock(block, info)
+	block = NewBlock(ethBlock, origin, nodeUri)
+	fmt.Println("-->", blockHash)
+	mon.AddBlock(block)
 	return block, false, nil
-}
-
-func (mon *ReorgMonitor) SubscribeAndStart(reorgChan chan<- *Reorg) string {
-	// Subscribe to new blocks
-	headers := make(chan *types.Header)
-	sub, err := mon.client.SubscribeNewHead(context.Background(), headers)
-	reorgutils.Perror(err)
-
-	for {
-		select {
-		case err := <-sub.Err():
-			log.Fatal(err)
-		case header := <-headers:
-			// Fetch full block information
-			block, err := mon.client.BlockByHash(context.Background(), header.Hash())
-			if err != nil {
-				log.Println("error", err)
-				continue
-			}
-
-			// Add the block
-			err = mon.AddBlock(block, "subscription")
-			if err != nil {
-				log.Println("error", err)
-				continue
-			}
-
-			// Check for reorgs
-			completedReorgs := mon.CheckForCompletedReorgs(200, 2)
-			for _, reorg := range completedReorgs {
-				reorgId := reorg.Id()
-
-				// If we have a yet unknown reorg, send to channel
-				_, found := mon.Reorgs[reorgId]
-				if !found {
-					// log.Println("New completed reorg found:", reorg.String())
-					mon.Reorgs[reorgId] = reorg
-					reorgChan <- reorg
-				}
-			}
-		}
-	}
 }
 
 func (mon *ReorgMonitor) CheckForReorgs(maxBlocks uint64, distanceToLastBlockHeight uint64) []*Reorg {
@@ -192,14 +268,14 @@ func (mon *ReorgMonitor) CheckForReorgs(maxBlocks uint64, distanceToLastBlockHei
 	var currentReorg *Reorg
 
 	for height := startBlockNumber; height <= endBlockNumber; height++ {
-		mon.DebugPrintln("CheckForReorgs at height", height)
-		numBlocksAtHeight := uint64(len(mon.BlocksByHeight[height]))
+		// mon.DebugPrintln("CheckForReorgs at height", height)
+		numBlocksAtHeight := len(mon.BlocksByHeight[height])
 		if numBlocksAtHeight > 1 {
 			// fmt.Printf("- sibling blocks at %d: %v\n", height, ro.NodesByHeight[height])
 
 			// detect reorg start
 			if currentReorg == nil {
-				currentReorg = NewReorg(mon.nodeUri)
+				currentReorg = NewReorg()
 				currentReorg.StartBlockHeight = height
 				currentReorg.SeenLive = true // will be set to false if any of the added blocks was received via uncle-info
 			}
@@ -208,7 +284,7 @@ func (mon *ReorgMonitor) CheckForReorgs(maxBlocks uint64, distanceToLastBlockHei
 			for _, block := range mon.BlocksByHeight[height] {
 				currentReorg.AddBlock(block)
 
-				if mon.BlockViaUncleInfo[block.Hash()] {
+				if block.Origin == OriginUncle {
 					currentReorg.SeenLive = false
 				}
 			}
@@ -216,12 +292,13 @@ func (mon *ReorgMonitor) CheckForReorgs(maxBlocks uint64, distanceToLastBlockHei
 		} else if numBlocksAtHeight == 0 {
 			fmt.Printf("CheckForReorgs: no block at height %d found\n", height)
 		} else {
-			// 1 block, end of reorg
-			currentBlock := mon.BlocksByHeight[height][0]
-			if currentReorg != nil {
-				currentReorg.Finalize(currentBlock)
-				reorgs = append(reorgs, currentReorg)
-				currentReorg = nil
+			// 1 block at this height, end of reorg
+			for _, currentBlock := range mon.BlocksByHeight[height] {
+				if currentReorg != nil {
+					currentReorg.Finalize(currentBlock)
+					reorgs = append(reorgs, currentReorg)
+					currentReorg = nil
+				}
 			}
 		}
 	}

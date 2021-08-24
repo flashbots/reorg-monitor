@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/metachris/eth-reorg-monitor/database"
 	"github.com/metachris/eth-reorg-monitor/monitor"
+	"github.com/metachris/eth-reorg-monitor/reorgutils"
 	flashbotsrpc "github.com/metachris/flashbots-rpc"
 )
 
@@ -19,6 +20,7 @@ var simulateBlocksWithMevGeth = false
 var Reorgs map[string]*monitor.Reorg = make(map[string]*monitor.Reorg)
 var db *database.DatabaseService
 var rpc *flashbotsrpc.FlashbotsRPC
+var callBundlePrivKey, _ = crypto.GenerateKey()
 
 var ColorGreen = "\033[1;32m%s\033[0m"
 
@@ -35,7 +37,7 @@ func getDbConfig() database.PostgresConfig {
 func main() {
 	log.SetOutput(os.Stdout)
 
-	ethUriPtr := flag.String("eth", os.Getenv("ETH_NODE"), "Geth node URI")
+	ethUriPtr := flag.String("eth", os.Getenv("ETH_NODE1"), "Geth node URI")
 	debugPtr := flag.Bool("debug", false, "print debug information")
 	saveToDbPtr := flag.Bool("db", false, "save reorgs to database")
 
@@ -73,7 +75,17 @@ func main() {
 	}()
 
 	// Start a monitor
-	mon := monitor.NewReorgMonitor(*ethUriPtr, *debugPtr, true)
+	mon := monitor.NewReorgMonitor(true)
+
+	err := mon.ConnectGethInstance(*ethUriPtr)
+	reorgutils.Perror(err)
+
+	err = mon.ConnectGethInstance(os.Getenv("ETH_NODE2"))
+	reorgutils.Perror(err)
+
+	// err = mon.ConnectGethInstance(os.Getenv("ETH_NODE3"))
+	// reorgutils.Perror(err)
+
 	mon.SubscribeAndStart(reorgChan)
 }
 
@@ -96,31 +108,25 @@ func handleReorg(reorg *monitor.Reorg) {
 		if err != nil {
 			log.Println("err at db.AddReorgEntry:", err)
 		}
-	}
-
-	if simulateBlocksWithMevGeth {
-		privateKey, _ := crypto.GenerateKey()
 
 		for _, block := range reorg.BlocksInvolved {
-			res, err := rpc.FlashbotsSimulateBlock(privateKey, block, 0)
-			if err != nil {
-				log.Println("error: sim failed of block", block.Hash(), "-", err)
-			} else {
-				fmt.Printf("- sim of block %s: CoinbaseDiff=%20s, GasFees=%20s, EthSentToCoinbase=%20s\n", block.Hash(), res.CoinbaseDiff, res.GasFees, res.EthSentToCoinbase)
+			blockEntry := database.NewBlockEntry(block, reorg)
+			if simulateBlocksWithMevGeth {
+				res, err := rpc.FlashbotsSimulateBlock(callBundlePrivKey, block.Block, 0)
+				if err != nil {
+					log.Println("error: sim failed of block", block.Hash, "-", err)
+				} else {
+					fmt.Printf("- sim of block %s: CoinbaseDiff=%20s, GasFees=%20s, EthSentToCoinbase=%20s\n", block.Hash, res.CoinbaseDiff, res.GasFees, res.EthSentToCoinbase)
+					blockEntry.UpdateWitCallBundleResponse(res)
+				}
 			}
 
-			if saveToDb {
-				response := &res
-				if err != nil {
-					response = nil
-				}
-				blockEntry := database.NewBlockEntry(block, reorg, response)
-				db.AddBlockEntry(blockEntry)
-			}
+			db.AddBlockEntry(blockEntry)
 		}
+
 	}
 
-	if reorg.Depth > 1 {
+	if reorg.NumReplacedBlocks > 1 {
 		fmt.Println(reorg.MermaidSyntax())
 		fmt.Println("")
 	}

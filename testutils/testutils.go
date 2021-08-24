@@ -33,8 +33,8 @@ func ConnectClient(uri string) error {
 }
 
 func ResetMon(nick string) {
-	Monitor = monitor.NewReorgMonitor(EthNodeUri, false, true)
-	// fmt.Println(Monitor.String())
+	Monitor = monitor.NewReorgMonitor(true)
+	Monitor.ConnectGethInstance(EthNodeUri)
 }
 
 func BlocksForStrings(blockStrings []string) (ret []*types.Block) {
@@ -52,8 +52,9 @@ func BlocksForStrings(blockStrings []string) (ret []*types.Block) {
 }
 
 func AddBlockAndPrintNewline(blocks ...*types.Block) {
-	for _, block := range blocks {
-		Monitor.AddBlock(block, "test")
+	for _, ethBlock := range blocks {
+		block := monitor.NewBlock(ethBlock, monitor.OriginSubscription, EthNodeUri)
+		Monitor.AddBlock(block)
 		// fmt.Println("")
 	}
 }

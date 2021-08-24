@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/metachris/eth-reorg-monitor/monitor"
 	"github.com/metachris/eth-reorg-monitor/reorgutils"
 	"github.com/metachris/eth-reorg-monitor/testutils"
 )
@@ -37,8 +38,9 @@ func Test(testCase testutils.TestCase) {
 	testutils.ResetMon(testCase.Name)
 
 	// Add the blocks
-	for _, block := range testutils.BlocksForStrings(testCase.BlockInfo) {
-		testutils.Monitor.AddBlock(block, "test")
+	for _, ethBlock := range testutils.BlocksForStrings(testCase.BlockInfo) {
+		block := monitor.NewBlock(ethBlock, monitor.OriginSubscription, testutils.EthNodeUri)
+		testutils.Monitor.AddBlock(block)
 	}
 
 	reorgs := testutils.ReorgCheckAndPrint()

@@ -37,20 +37,14 @@ Notes:
 
 ---
 
-## TODO
-
-* Add `seenLive` to block db entries.
-
----
-
 ## Helpers
 
 ```bash
-# Show only reorgs with ChainSegments
+# Show AddBlock from logs
 grep -v "AddBlock" output/monitor-new/run13.txt 
 
 # Get depth: 2 and higher reorgs
-grep "Reorg 1" output/monitor-new/run13.txt | grep -v "depth: 1"
+grep "Reorg " output/monitor-new/run13.txt | grep -v "depth: 1"
 ```
 
 Mermaid:

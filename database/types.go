@@ -3,7 +3,6 @@ package database
 import (
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/core/types"
 	_ "github.com/lib/pq"
 	"github.com/metachris/eth-reorg-monitor/monitor"
 	"github.com/metachris/eth-reorg-monitor/reorgutils"
@@ -16,7 +15,6 @@ CREATE TABLE IF NOT EXISTS reorg_summary (
 	Created_At timestamp default current_timestamp,
 
     Key      VARCHAR (40) NOT NULL UNIQUE,
-    NodeUri  VARCHAR (50) NOT NULL,
     SeenLive boolean NOT NULL,
 
     StartBlockNumber   integer NOT NULL,
@@ -32,6 +30,9 @@ CREATE TABLE IF NOT EXISTS reorg_block (
 	Created_At timestamp default current_timestamp,
 
     Reorg_Key VARCHAR (40) REFERENCES reorg_summary (Key) NOT NULL,
+
+    Origin        VARCHAR (20) NOT NULL,
+    NodeUri       VARCHAR (100) NOT NULL,
 
     BlockNumber     integer NOT NULL,
     BlockHash       text NOT NULL,
@@ -62,7 +63,6 @@ type ReorgEntry struct {
 	Created_At int
 
 	Key      string
-	NodeUri  string
 	SeenLive bool
 
 	StartBlockNumber  uint64
@@ -73,10 +73,9 @@ type ReorgEntry struct {
 	MermaidSyntax     string
 }
 
-func NewReorgEntry(reorg *monitor.Reorg) ReorgEntry {
+func NewReorgEntry(reorg *monitor.Reorg2) ReorgEntry {
 	return ReorgEntry{
 		Key:               reorg.Id(),
-		NodeUri:           reorg.NodeUri,
 		SeenLive:          reorg.SeenLive,
 		StartBlockNumber:  reorg.StartBlockHeight,
 		EndBlockNumber:    reorg.EndBlockHeight,
@@ -92,6 +91,8 @@ type BlockEntry struct {
 	Created_At int
 
 	Reorg_Key string
+	Origin    string
+	NodeUri   string
 
 	BlockNumber     uint64
 	BlockHash       string
@@ -116,24 +117,26 @@ type BlockEntry struct {
 	MevGeth_EthSentToCoinbase string
 }
 
-func NewBlockEntry(block *types.Block, reorg *monitor.Reorg, callBundleResponse *flashbotsrpc.FlashbotsCallBundleResponse) BlockEntry {
-	_, isPartOfReorg := reorg.BlocksInvolved[block.Hash()]
-	_, isMainChain := reorg.MainChainHashes[block.Hash()]
-	isUncle := !isMainChain && block.NumberU64() == reorg.StartBlockHeight
+func NewBlockEntry(block *monitor.Block, reorg *monitor.Reorg2) BlockEntry {
+	_, isPartOfReorg := reorg.BlocksInvolved[block.Hash]
+	_, isMainChain := reorg.MainChainHashes[block.Hash]
+	isUncle := !isMainChain && block.Number == reorg.StartBlockHeight
 	isChild := !isMainChain && !isUncle
 
 	blockEntry := BlockEntry{
 		Reorg_Key: reorg.Id(),
+		Origin:    string(block.Origin),
+		NodeUri:   block.NodeUri,
 
-		BlockNumber:     block.NumberU64(),
-		BlockHash:       block.Hash().String(),
-		ParentHash:      block.ParentHash().String(),
-		BlockTimestamp:  block.Time(),
-		CoinbaseAddress: block.Coinbase().String(),
+		BlockNumber:     block.Number,
+		BlockHash:       block.Hash.String(),
+		ParentHash:      block.ParentHash.String(),
+		BlockTimestamp:  block.Block.Time(),
+		CoinbaseAddress: block.Block.Coinbase().String(),
 
-		Difficulty: block.Difficulty().Uint64(),
-		NumUncles:  len(block.Uncles()),
-		NumTx:      len(block.Transactions()),
+		Difficulty: block.Block.Difficulty().Uint64(),
+		NumUncles:  len(block.Block.Uncles()),
+		NumTx:      len(block.Block.Transactions()),
 
 		IsPartOfReorg: isPartOfReorg,
 		IsMainChain:   isMainChain,
@@ -148,22 +151,22 @@ func NewBlockEntry(block *types.Block, reorg *monitor.Reorg, callBundleResponse 
 		MevGeth_EthSentToCoinbase: "-1",
 	}
 
-	if callBundleResponse != nil {
-		coinbaseDiffWei := new(big.Int)
-		coinbaseDiffWei.SetString(callBundleResponse.CoinbaseDiff, 10)
-		coinbaseDiffEth := reorgutils.WeiToEth(coinbaseDiffWei)
-
-		ethSentToCoinbaseWei := new(big.Int)
-		ethSentToCoinbaseWei.SetString(callBundleResponse.EthSentToCoinbase, 10)
-		ethSentToCoinbase := reorgutils.WeiToEth(ethSentToCoinbaseWei)
-
-		blockEntry.MevGeth_CoinbaseDiffWei = callBundleResponse.CoinbaseDiff
-		blockEntry.MevGeth_GasFeesWei = callBundleResponse.GasFees
-		blockEntry.MevGeth_EthSentToCoinbaseWei = callBundleResponse.EthSentToCoinbase
-
-		blockEntry.MevGeth_CoinbaseDiffEth = coinbaseDiffEth.Text('f', 6)
-		blockEntry.MevGeth_EthSentToCoinbase = ethSentToCoinbase.Text('f', 6)
-	}
-
 	return blockEntry
+}
+
+func (e *BlockEntry) UpdateWitCallBundleResponse(callBundleResponse flashbotsrpc.FlashbotsCallBundleResponse) {
+	coinbaseDiffWei := new(big.Int)
+	coinbaseDiffWei.SetString(callBundleResponse.CoinbaseDiff, 10)
+	coinbaseDiffEth := reorgutils.WeiToEth(coinbaseDiffWei)
+
+	ethSentToCoinbaseWei := new(big.Int)
+	ethSentToCoinbaseWei.SetString(callBundleResponse.EthSentToCoinbase, 10)
+	ethSentToCoinbase := reorgutils.WeiToEth(ethSentToCoinbaseWei)
+
+	e.MevGeth_CoinbaseDiffWei = callBundleResponse.CoinbaseDiff
+	e.MevGeth_GasFeesWei = callBundleResponse.GasFees
+	e.MevGeth_EthSentToCoinbaseWei = callBundleResponse.EthSentToCoinbase
+
+	e.MevGeth_CoinbaseDiffEth = coinbaseDiffEth.Text('f', 6)
+	e.MevGeth_EthSentToCoinbase = ethSentToCoinbase.Text('f', 6)
 }

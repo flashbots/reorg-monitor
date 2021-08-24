@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/metachris/eth-reorg-monitor/database"
+	"github.com/metachris/eth-reorg-monitor/monitor"
 	"github.com/metachris/eth-reorg-monitor/reorgutils"
 	"github.com/metachris/eth-reorg-monitor/testutils"
 )
@@ -25,7 +26,7 @@ func main() {
 
 	log.SetOutput(os.Stdout)
 
-	ethUriPtr := flag.String("eth", os.Getenv("ETH_NODE"), "Geth node URI")
+	ethUriPtr := flag.String("eth", os.Getenv("ETH_NODE1"), "Geth node URI")
 	flag.Parse()
 
 	if *ethUriPtr == "" {
@@ -42,11 +43,15 @@ func main() {
 	// Test(testutils.Test_13017535_13017536_d2_b5)
 	// Test(testutils.Test_13018369_13018370_d2_b4)
 
+	// test := testutils.Test_13018369_13018370_d2_b4
+	// test := testutils.Test_12996750_12996750_d1_b3_twouncles
+	test := testutils.Test_Tmp
 	testutils.ResetMon("")
 
 	// Add the blocks
-	for _, block := range testutils.BlocksForStrings(testutils.Test_13018369_13018370_d2_b4.BlockInfo) {
-		testutils.Monitor.AddBlock(block, "test")
+	for _, ethBlock := range testutils.BlocksForStrings(test.BlockInfo) {
+		block := monitor.NewBlock(ethBlock, monitor.OriginSubscription, *ethUriPtr)
+		testutils.Monitor.AddBlock(block)
 	}
 
 	reorgs := testutils.ReorgCheckAndPrint()
@@ -60,8 +65,7 @@ func main() {
 
 	// blocks
 	for _, block := range reorg.BlocksInvolved {
-		blockEntry := database.NewBlockEntry(block, reorg, nil)
+		blockEntry := database.NewBlockEntry(block, reorg)
 		db.AddBlockEntry(blockEntry)
-		break
 	}
 }

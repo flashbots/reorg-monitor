@@ -32,13 +32,19 @@ stateDiagram-v2
     0x5996b0838dbd0d23458664633d1f7beef77be74a69abafdd588825b01ab1f15a --> 0xb63bb5b0ee3bffb39c6afec9e7569150c9a9b170aba84f5a34c960ffb27046e4
 */
 
+var Test_Tmp = TestCase{
+	Name:           "uncletest",
+	BlockInfo:      []string{"13090277", "13090279"},
+	ExpectedResult: ReorgTestResult{StartBlock: 13090277, EndBlock: 13090279, Depth: 1, NumBlocks: 3, NumReplacedBlocks: 2},
+}
+
 var Test_12996760_12996760_d1_b2 = TestCase{
 	Name:           "1 uncle",
 	BlockInfo:      []string{"12996760", "12996763"},
 	ExpectedResult: ReorgTestResult{StartBlock: 12996760, EndBlock: 12996760, Depth: 1, NumBlocks: 2, NumReplacedBlocks: 1},
 }
 
-var Test_12996750_12996750_d1_b3 = TestCase{
+var Test_12996750_12996750_d1_b3_twouncles = TestCase{
 	Name:           "2 uncles",
 	BlockInfo:      []string{"12996749", "12996751"},
 	ExpectedResult: ReorgTestResult{StartBlock: 12996750, EndBlock: 12996750, Depth: 1, NumBlocks: 3, NumReplacedBlocks: 2},
