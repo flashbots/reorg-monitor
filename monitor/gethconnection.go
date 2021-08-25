@@ -13,13 +13,11 @@ import (
 type GethConnection struct {
 	NodeUri string
 	Client  *ethclient.Client
-	// headerChan chan<- *types.Header
 }
 
 func NewGethConnection(nodeUri string) (*GethConnection, error) {
 	conn := GethConnection{
 		NodeUri: nodeUri,
-		// headerChan: make(chan<- *types.Header),
 	}
 
 	err := conn.Connect()
@@ -30,20 +28,16 @@ func (conn *GethConnection) Connect() (err error) {
 	fmt.Printf("[%25s] Connecting to geth node... ", conn.NodeUri)
 	conn.Client, err = ethclient.Dial(conn.NodeUri)
 	if err != nil {
-		fmt.Printf(" err: %v\n", err)
 		return err
 	}
 
 	syncProgress, err := conn.Client.SyncProgress(context.Background())
 	if err != nil {
-		fmt.Printf("syncProgress err: %v\n", err)
-		return err
+		return fmt.Errorf("err at syncProgress: %v", err)
 	}
 
 	if syncProgress != nil {
-		msg := "err: sync in progress"
-		fmt.Println(msg)
-		return fmt.Errorf(msg)
+		return fmt.Errorf("err: sync in progress")
 	}
 
 	fmt.Printf("ok\n")

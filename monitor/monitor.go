@@ -101,7 +101,9 @@ func (mon *ReorgMonitor) ConnectClients() error {
 	return nil
 }
 
-func (mon *ReorgMonitor) SubscribeAndStart() {
+// SubscribeAndListen subscribes to new blocks from all geth connections, and waits for new blocks to process.
+// After adding a new block, a reorg check takes place. If a new completed reorg is detected, it is sent to the channel.
+func (mon *ReorgMonitor) SubscribeAndListen() {
 	// Subscribe to new blocks from all clients
 	for _, conn := range mon.connections {
 		go conn.Subscribe(mon.NewBlockChan)
@@ -111,7 +113,7 @@ func (mon *ReorgMonitor) SubscribeAndStart() {
 	for block := range mon.NewBlockChan {
 		mon.AddBlock(block)
 
-		completedReorgs := mon.CheckForCompletedReorgs(0, 2)
+		completedReorgs := mon.CheckForReorgs(0, 2)
 		for _, reorg := range completedReorgs {
 			// Send new reorgs to channel
 			if _, isKnownReorg := mon.Reorgs[reorg.Id()]; !isKnownReorg {
@@ -286,16 +288,5 @@ func (mon *ReorgMonitor) CheckForReorgs(maxBlocks uint64, distanceToLastBlockHei
 		}
 	}
 
-	return reorgs
-}
-
-func (mon *ReorgMonitor) CheckForCompletedReorgs(maxBlocks uint64, distanceToLastBlockHeight uint64) (reorgs []*Reorg) {
-	reorgs = make([]*Reorg, 0)
-	_reorgs := mon.CheckForReorgs(maxBlocks, distanceToLastBlockHeight)
-	for _, _reorg := range _reorgs {
-		if _reorg.IsCompleted {
-			reorgs = append(reorgs, _reorg)
-		}
-	}
 	return reorgs
 }

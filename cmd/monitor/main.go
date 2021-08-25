@@ -76,8 +76,9 @@ func main() {
 	mon := monitor.NewReorgMonitor(ethUris, reorgChan, true)
 	err := mon.ConnectClients()
 	reorgutils.Perror(err)
-	go mon.SubscribeAndStart()
+	go mon.SubscribeAndListen()
 
+	// Wait for reorgs
 	for reorg := range reorgChan {
 		handleReorg(reorg)
 	}
