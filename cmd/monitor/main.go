@@ -57,6 +57,7 @@ func main() {
 		simulateBlocksWithMevGeth = true
 		rpc = flashbotsrpc.NewFlashbotsRPC(*mevGethUriPtr)
 		rpc.Debug = *debugPtr
+		fmt.Printf("Using mev-geth node at %s for simulations\n", *mevGethUriPtr)
 	}
 
 	if *saveToDbPtr {

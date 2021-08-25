@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"sync"
 	"time"
 
 	"github.com/pkg/errors"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -53,8 +53,8 @@ func (block *Block) String() string {
 
 type ReorgMonitor struct {
 	maxBlocksInCache int
-	addBlockLock     sync.Mutex
 
+	// gethNodeUris []string
 	clients map[string]*ethclient.Client
 	verbose bool
 
@@ -71,6 +71,7 @@ type ReorgMonitor struct {
 func NewReorgMonitor(verbose bool) *ReorgMonitor {
 	return &ReorgMonitor{
 		maxBlocksInCache: 1000,
+		// gethNodeUris:     gethNodeUris,
 
 		verbose: verbose,
 		clients: make(map[string]*ethclient.Client),
@@ -98,6 +99,9 @@ func (mon *ReorgMonitor) ConnectGethInstance(nodeUri string) error {
 	return nil
 }
 
+// func (mon *ReorgMonitor) _gethConnectAndSubscribe() error {
+// }
+
 func (mon *ReorgMonitor) SubscribeAndStart(reorgChan chan<- *Reorg) error {
 	// Subscribe to new blocks from all clients
 	for clientNodeUri, client := range mon.clients {
@@ -107,11 +111,27 @@ func (mon *ReorgMonitor) SubscribeAndStart(reorgChan chan<- *Reorg) error {
 			return err
 		}
 
-		go func(_client *ethclient.Client, nodeUri string) {
+		go func(_sub ethereum.Subscription, _client *ethclient.Client, nodeUri string) {
 			for {
 				select {
-				case err := <-sub.Err():
-					fmt.Printf("Subscription error on node %s: %v\n", nodeUri, err)
+				case err := <-_sub.Err():
+					fmt.Printf("Subscription error on node %s: %v. Trying to resubscribe.\n", nodeUri, err)
+					// try to reconnect
+					_sub, err = _client.SubscribeNewHead(context.Background(), headers)
+					if err != nil {
+						fmt.Printf("- Resubscription failed: %v. Trying to reconnect...\n", err)
+						_client, err = ethclient.Dial(nodeUri)
+						if err != nil {
+							fmt.Printf("- Reconnect failed: %v\n", err)
+							return // die
+						} else {
+							_sub, err = _client.SubscribeNewHead(context.Background(), headers)
+							if err != nil {
+								fmt.Printf("- Resubscribe after reconnect failed: %v\n", err)
+								return // die
+							}
+						}
+					}
 				case header := <-headers:
 					// Fetch full block information from same client
 					ethBlock, err := _client.BlockByHash(context.Background(), header.Hash())
@@ -125,7 +145,7 @@ func (mon *ReorgMonitor) SubscribeAndStart(reorgChan chan<- *Reorg) error {
 					mon.NewBlockChannel <- newBlock
 				}
 			}
-		}(client, clientNodeUri)
+		}(sub, client, clientNodeUri)
 	}
 
 	for block := range mon.NewBlockChannel {
@@ -133,13 +153,9 @@ func (mon *ReorgMonitor) SubscribeAndStart(reorgChan chan<- *Reorg) error {
 
 		completedReorgs := mon.CheckForCompletedReorgs(0, 2)
 		for _, reorg := range completedReorgs {
-			reorgId := reorg.Id()
-
-			// If we have a yet unknown reorg, send to channel
-			_, found := mon.Reorgs[reorgId]
-			if !found {
-				// log.Println("New completed reorg found:", reorg.String())
-				mon.Reorgs[reorgId] = reorg
+			// Send new reorgs to channel
+			if _, isKnownReorg := mon.Reorgs[reorg.Id()]; !isKnownReorg {
+				mon.Reorgs[reorg.Id()] = reorg
 				reorgChan <- reorg
 			}
 		}
@@ -150,10 +166,6 @@ func (mon *ReorgMonitor) SubscribeAndStart(reorgChan chan<- *Reorg) error {
 
 // AddBlock adds a block to history if it hasn't been seen before, and download unknown referenced blocks (parent, uncles).
 func (mon *ReorgMonitor) AddBlock(block *Block) bool {
-	// Use a lock to make sure this happens one-at-a-time
-	mon.addBlockLock.Lock()
-	defer mon.addBlockLock.Unlock()
-
 	// If known, then only overwrite if known was by uncle
 	knownBlock, isKnown := mon.BlockByHash[block.Hash]
 	if isKnown && knownBlock.Origin != OriginUncle {
@@ -196,18 +208,24 @@ func (mon *ReorgMonitor) AddBlock(block *Block) bool {
 
 func (mon *ReorgMonitor) TrimCache() {
 	for currentHeight := mon.EarliestBlockNumber; currentHeight < mon.LatestBlockNumber; currentHeight++ {
+		blocks, heightExists := mon.BlocksByHeight[currentHeight]
+		if !heightExists {
+			continue
+		}
+
+		// Set new lowest block number
 		mon.EarliestBlockNumber = currentHeight
 
-		if len(mon.BlockByHash) < mon.maxBlocksInCache {
+		// Stop if trimmed enough
+		if len(mon.BlockByHash) <= mon.maxBlocksInCache {
 			return
 		}
 
-		blocks := mon.BlocksByHeight[currentHeight]
+		// Trim
+		delete(mon.BlocksByHeight, currentHeight)
 		for hash := range blocks {
 			delete(mon.BlockByHash, hash)
 		}
-
-		delete(mon.BlocksByHeight, currentHeight)
 	}
 }
 
@@ -243,7 +261,7 @@ func (mon *ReorgMonitor) EnsureBlock(blockHash common.Hash, origin BlockOrigin, 
 		return block, true, nil
 	}
 
-	fmt.Printf("- block %s not found, downloading from %s...\n", blockHash, nodeUri)
+	fmt.Printf("- [%s] block %s not found, downloading from %s...\n", origin, blockHash, nodeUri)
 	client := mon.clients[nodeUri]
 	ethBlock, err := client.BlockByHash(context.Background(), blockHash)
 	if err != nil {
