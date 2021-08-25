@@ -106,7 +106,16 @@ func handleReorg(reorg *monitor.Reorg) {
 
 		for _, block := range reorg.BlocksInvolved {
 			blockEntry := database.NewBlockEntry(block, reorg)
-			if simulateBlocksWithMevGeth {
+
+			// If block has no transactions, then it has 0 miner value (no need to simulate)
+			if len(block.Block.Transactions()) == 0 {
+				blockEntry.MevGeth_CoinbaseDiffWei = "0"
+				blockEntry.MevGeth_GasFeesWei = "0"
+				blockEntry.MevGeth_EthSentToCoinbaseWei = "0"
+				blockEntry.MevGeth_CoinbaseDiffEth = "0.000000"
+				blockEntry.MevGeth_EthSentToCoinbase = "0.000000"
+
+			} else if simulateBlocksWithMevGeth { // simulate the block now
 				res, err := rpc.FlashbotsSimulateBlock(callBundlePrivKey, block.Block, 0)
 				if err != nil {
 					log.Println("error: sim failed of block", block.Hash, "-", err)
