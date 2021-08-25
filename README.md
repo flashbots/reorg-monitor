@@ -40,8 +40,15 @@ Notes:
 
 ## TODO
 
+Important:
+
+* GethConnection: reconnect (retry with backoff)
+* better reorg detection: currently counts 2x depth-1 reorg as one depth-2 reorg
+
+Less important:
+
 * cmd to simulate blocks from the database that had an error before
-* geth client abstraction that supports reconnects
+* pool of mev-geth instances for simulating blocks
 
 ---
 

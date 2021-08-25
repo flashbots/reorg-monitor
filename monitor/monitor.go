@@ -3,15 +3,12 @@ package monitor
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/pkg/errors"
 
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 type BlockOrigin string
@@ -54,11 +51,13 @@ func (block *Block) String() string {
 type ReorgMonitor struct {
 	maxBlocksInCache int
 
-	// gethNodeUris []string
-	clients map[string]*ethclient.Client
-	verbose bool
+	gethNodeUris []string
+	connections  map[string]*GethConnection
+	verbose      bool
 
-	NewBlockChan   chan (*Block)
+	NewBlockChan chan *Block
+	NewReorgChan chan<- *Reorg
+
 	BlockByHash    map[common.Hash]*Block
 	BlocksByHeight map[uint64]map[common.Hash]*Block
 
@@ -68,15 +67,17 @@ type ReorgMonitor struct {
 	Reorgs map[string]*Reorg
 }
 
-func NewReorgMonitor(verbose bool) *ReorgMonitor {
+func NewReorgMonitor(gethNodeUris []string, reorgChan chan<- *Reorg, verbose bool) *ReorgMonitor {
 	return &ReorgMonitor{
+		verbose:          verbose,
 		maxBlocksInCache: 1000,
-		// gethNodeUris:     gethNodeUris,
 
-		verbose: verbose,
-		clients: make(map[string]*ethclient.Client),
+		gethNodeUris: gethNodeUris,
+		connections:  make(map[string]*GethConnection),
 
-		NewBlockChan:   make(chan *Block, 100),
+		NewBlockChan: make(chan *Block, 100),
+		NewReorgChan: reorgChan,
+
 		BlockByHash:    make(map[common.Hash]*Block),
 		BlocksByHeight: make(map[uint64]map[common.Hash]*Block),
 		Reorgs:         make(map[string]*Reorg),
@@ -87,67 +88,26 @@ func (mon *ReorgMonitor) String() string {
 	return fmt.Sprintf("ReorgMonitor: %d - %d, %d blocks", mon.EarliestBlockNumber, mon.LatestBlockNumber, len(mon.BlockByHash))
 }
 
-func (mon *ReorgMonitor) ConnectGethInstance(nodeUri string) error {
-	fmt.Printf("[%25s] Connecting to geth node...", nodeUri)
-	client, err := ethclient.Dial(nodeUri)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf(" ok\n")
-	mon.clients[nodeUri] = client
-	return nil
-}
-
-// func (mon *ReorgMonitor) _gethConnectAndSubscribe() error {
-// }
-
-func (mon *ReorgMonitor) SubscribeAndStart(reorgChan chan<- *Reorg) error {
-	// Subscribe to new blocks from all clients
-	for clientNodeUri, client := range mon.clients {
-		headers := make(chan *types.Header)
-		sub, err := client.SubscribeNewHead(context.Background(), headers)
+func (mon *ReorgMonitor) ConnectClients() error {
+	for _, nodeUri := range mon.gethNodeUris {
+		gethConn, err := NewGethConnection(nodeUri)
 		if err != nil {
 			return err
 		}
 
-		go func(_sub ethereum.Subscription, _client *ethclient.Client, nodeUri string) {
-			for {
-				select {
-				case err := <-_sub.Err():
-					fmt.Printf("Subscription error on node %s: %v. Trying to resubscribe.\n", nodeUri, err)
-					// try to reconnect
-					_sub, err = _client.SubscribeNewHead(context.Background(), headers)
-					if err != nil {
-						fmt.Printf("- Resubscription failed: %v. Trying to reconnect...\n", err)
-						_client, err = ethclient.Dial(nodeUri)
-						if err != nil {
-							fmt.Printf("- Reconnect failed: %v\n", err)
-							return // die
-						} else {
-							_sub, err = _client.SubscribeNewHead(context.Background(), headers)
-							if err != nil {
-								fmt.Printf("- Resubscribe after reconnect failed: %v\n", err)
-								return // die
-							}
-						}
-					}
-				case header := <-headers:
-					// Fetch full block information from same client
-					ethBlock, err := _client.BlockByHash(context.Background(), header.Hash())
-					if err != nil {
-						log.Println("newHeader -> getBlockByHash error", err)
-						continue
-					}
-
-					// Add the block
-					newBlock := NewBlock(ethBlock, OriginSubscription, nodeUri)
-					mon.NewBlockChan <- newBlock
-				}
-			}
-		}(sub, client, clientNodeUri)
+		mon.connections[nodeUri] = gethConn
 	}
 
+	return nil
+}
+
+func (mon *ReorgMonitor) SubscribeAndStart() {
+	// Subscribe to new blocks from all clients
+	for _, conn := range mon.connections {
+		go conn.Subscribe(mon.NewBlockChan)
+	}
+
+	// Wait for new blocks and process them (blocking)
 	for block := range mon.NewBlockChan {
 		mon.AddBlock(block)
 
@@ -156,12 +116,10 @@ func (mon *ReorgMonitor) SubscribeAndStart(reorgChan chan<- *Reorg) error {
 			// Send new reorgs to channel
 			if _, isKnownReorg := mon.Reorgs[reorg.Id()]; !isKnownReorg {
 				mon.Reorgs[reorg.Id()] = reorg
-				reorgChan <- reorg
+				mon.NewReorgChan <- reorg
 			}
 		}
 	}
-
-	return nil
 }
 
 // AddBlock adds a block to history if it hasn't been seen before, and download unknown referenced blocks (parent, uncles).
@@ -267,8 +225,8 @@ func (mon *ReorgMonitor) EnsureBlock(blockHash common.Hash, origin BlockOrigin, 
 	}
 
 	fmt.Printf("- [%s] block %s not found, downloading from %s...\n", origin, blockHash, nodeUri)
-	client := mon.clients[nodeUri]
-	ethBlock, err := client.BlockByHash(context.Background(), blockHash)
+	conn := mon.connections[nodeUri]
+	ethBlock, err := conn.Client.BlockByHash(context.Background(), blockHash)
 	if err != nil {
 		fmt.Println("- err block not found:", blockHash, err)
 		return nil, false, errors.Wrap(err, "EnsureBlock error")

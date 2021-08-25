@@ -37,7 +37,7 @@ func getDbConfig() database.PostgresConfig {
 func main() {
 	log.SetOutput(os.Stdout)
 
-	ethUriPtr := flag.String("eth", os.Getenv("ETH_NODE1"), "Geth node URI")
+	ethUriPtr := flag.String("eth", os.Getenv("ETH_NODES"), "Geth node URIs (comma separated)")
 	debugPtr := flag.Bool("debug", false, "print debug information")
 	saveToDbPtr := flag.Bool("db", false, "save reorgs to database")
 
@@ -48,6 +48,8 @@ func main() {
 	if *ethUriPtr == "" {
 		log.Fatal("Missing eth node uri")
 	}
+
+	ethUris := strings.Split(*ethUriPtr, ",")
 
 	if *mevGethSimPtr {
 		if *mevGethUriPtr == "" {
@@ -67,36 +69,18 @@ func main() {
 		fmt.Println("Connected to database at", dbCfg.Host)
 	}
 
-	// Handle reorgs from many monitors
+	// Channel to receive reorgs from monitor
 	reorgChan := make(chan *monitor.Reorg)
-	go func() {
-		for reorg := range reorgChan {
-			handleReorg(reorg)
-		}
-	}()
 
-	// Start a monitor
-	mon := monitor.NewReorgMonitor(true)
-
-	// Connect to first geth instance
-	err := mon.ConnectGethInstance(*ethUriPtr)
+	// Setup and start the monitor
+	mon := monitor.NewReorgMonitor(ethUris, reorgChan, true)
+	err := mon.ConnectClients()
 	reorgutils.Perror(err)
+	go mon.SubscribeAndStart()
 
-	// Connect to further ones
-	cnt := 2
-	for {
-		nodeUri := os.Getenv(fmt.Sprintf("ETH_NODE%d", cnt))
-		if nodeUri == "" {
-			break
-		}
-
-		err = mon.ConnectGethInstance(nodeUri)
-		reorgutils.Perror(err)
-		cnt += 1
+	for reorg := range reorgChan {
+		handleReorg(reorg)
 	}
-
-	// Run
-	mon.SubscribeAndStart(reorgChan)
 }
 
 func handleReorg(reorg *monitor.Reorg) {

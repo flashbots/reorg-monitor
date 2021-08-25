@@ -33,8 +33,10 @@ func ConnectClient(uri string) error {
 }
 
 func ResetMon(nick string) {
-	Monitor = monitor.NewReorgMonitor(true)
-	Monitor.ConnectGethInstance(EthNodeUri)
+	reorgChan := make(chan *monitor.Reorg)
+	Monitor = monitor.NewReorgMonitor([]string{EthNodeUri}, reorgChan, true)
+	err := Monitor.ConnectClients()
+	reorgutils.Perror(err)
 }
 
 func BlocksForStrings(blockStrings []string) (ret []*types.Block) {
