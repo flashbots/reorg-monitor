@@ -101,7 +101,7 @@ func handleReorg(reorg *monitor.Reorg) {
 		entry := database.NewReorgEntry(reorg)
 		err := db.AddReorgEntry(entry)
 		if err != nil {
-			log.Println("err at db.AddReorgEntry:", err)
+			log.Println("error at db.AddReorgEntry:", err)
 		}
 
 		for _, block := range reorg.BlocksInvolved {
@@ -125,9 +125,11 @@ func handleReorg(reorg *monitor.Reorg) {
 				}
 			}
 
-			db.AddBlockEntry(blockEntry)
+			err := db.AddBlockEntry(blockEntry)
+			if err != nil {
+				log.Println("error at db.AddBlockEntry:", err)
+			}
 		}
-
 	}
 
 	if reorg.NumReplacedBlocks > 1 {
