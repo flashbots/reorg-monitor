@@ -38,6 +38,13 @@ Notes:
 
 ---
 
+## TODO
+
+* cmd to simulate blocks from the database that had an error before
+* geth client abstraction that supports reconnects
+
+---
+
 ## Helpers
 
 ```bash

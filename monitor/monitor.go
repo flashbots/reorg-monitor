@@ -58,9 +58,9 @@ type ReorgMonitor struct {
 	clients map[string]*ethclient.Client
 	verbose bool
 
-	NewBlockChannel chan (*Block)
-	BlockByHash     map[common.Hash]*Block
-	BlocksByHeight  map[uint64]map[common.Hash]*Block
+	NewBlockChan   chan (*Block)
+	BlockByHash    map[common.Hash]*Block
+	BlocksByHeight map[uint64]map[common.Hash]*Block
 
 	EarliestBlockNumber uint64
 	LatestBlockNumber   uint64
@@ -76,10 +76,10 @@ func NewReorgMonitor(verbose bool) *ReorgMonitor {
 		verbose: verbose,
 		clients: make(map[string]*ethclient.Client),
 
-		NewBlockChannel: make(chan *Block),
-		BlockByHash:     make(map[common.Hash]*Block),
-		BlocksByHeight:  make(map[uint64]map[common.Hash]*Block),
-		Reorgs:          make(map[string]*Reorg),
+		NewBlockChan:   make(chan *Block, 100),
+		BlockByHash:    make(map[common.Hash]*Block),
+		BlocksByHeight: make(map[uint64]map[common.Hash]*Block),
+		Reorgs:         make(map[string]*Reorg),
 	}
 }
 
@@ -142,13 +142,13 @@ func (mon *ReorgMonitor) SubscribeAndStart(reorgChan chan<- *Reorg) error {
 
 					// Add the block
 					newBlock := NewBlock(ethBlock, OriginSubscription, nodeUri)
-					mon.NewBlockChannel <- newBlock
+					mon.NewBlockChan <- newBlock
 				}
 			}
 		}(sub, client, clientNodeUri)
 	}
 
-	for block := range mon.NewBlockChannel {
+	for block := range mon.NewBlockChan {
 		mon.AddBlock(block)
 
 		completedReorgs := mon.CheckForCompletedReorgs(0, 2)
@@ -169,6 +169,11 @@ func (mon *ReorgMonitor) AddBlock(block *Block) bool {
 	// If known, then only overwrite if known was by uncle
 	knownBlock, isKnown := mon.BlockByHash[block.Hash]
 	if isKnown && knownBlock.Origin != OriginUncle {
+		return false
+	}
+
+	// Only accept blocks that are after the earliest known (some nodes might be further back)
+	if block.Number < mon.EarliestBlockNumber {
 		return false
 	}
 
@@ -270,7 +275,8 @@ func (mon *ReorgMonitor) EnsureBlock(blockHash common.Hash, origin BlockOrigin, 
 	}
 
 	block = NewBlock(ethBlock, origin, nodeUri)
-	mon.AddBlock(block)
+	// mon.AddBlock(block)
+	mon.NewBlockChan <- block
 	return block, false, nil
 }
 
