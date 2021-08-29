@@ -41,6 +41,8 @@ func main() {
 	debugPtr := flag.Bool("debug", false, "print debug information")
 	saveToDbPtr := flag.Bool("db", false, "save reorgs to database")
 
+	webserverPortPtr := flag.Int("webserver", 8094, "port for the webserver (0 to disable)")
+
 	mevGethSimPtr := flag.Bool("sim", false, "simulate blocks in mev-geth")
 	mevGethUriPtr := flag.String("mevgeth", os.Getenv("MEVGETH_NODE"), "mev-geth node URI")
 	flag.Parse()
@@ -76,6 +78,12 @@ func main() {
 	err := mon.ConnectClients()
 	reorgutils.Perror(err)
 	go mon.SubscribeAndListen()
+
+	if *webserverPortPtr > 0 {
+		fmt.Printf("Starting webserver on port %d\n", *webserverPortPtr)
+		ws := monitor.NewMonitorWebserver(mon, *webserverPortPtr)
+		go ws.ListenAndServe()
+	}
 
 	// Wait for reorgs
 	for reorg := range reorgChan {

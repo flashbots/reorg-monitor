@@ -19,6 +19,10 @@ type GethConnection struct {
 	IsConnected         bool
 	IsSubscribed        bool
 	LastRetryTimeoutSec int64 // Wait time before retry. Starts at 5 seconds and doubles after each unsuccessful retry (max: 3 min).
+
+	NumResubscribes int64
+	NumReconnects   int64
+	NumBlocks       uint64
 }
 
 func NewGethConnection(nodeUri string, newBlockChan chan<- *Block) (*GethConnection, error) {
@@ -73,6 +77,8 @@ func (conn *GethConnection) Subscribe() error {
 			conn.ResubscribeAfterTimeout()
 			return err
 		case header := <-headers:
+			conn.NumBlocks += 1
+
 			// Fetch full block information from same client
 			ethBlock, err := conn.Client.BlockByHash(context.Background(), header.Hash())
 			if err != nil {
@@ -88,6 +94,7 @@ func (conn *GethConnection) Subscribe() error {
 }
 
 func (conn *GethConnection) ResubscribeAfterTimeout() {
+	conn.NumResubscribes += 1
 	log.Printf("[conn %s] resubscribing in %d seconds...\n", conn.NodeUri, conn.LastRetryTimeoutSec)
 	time.Sleep(time.Duration(conn.LastRetryTimeoutSec) * time.Second)
 	log.Printf("[conn %s] resubscribing...\n", conn.NodeUri)
@@ -104,6 +111,7 @@ func (conn *GethConnection) ResubscribeAfterTimeout() {
 		log.Printf("[conn %s] err at ResubscribeAfterTimeout syncProgressCheck: %v\n", conn.NodeUri, err)
 
 		// Reconnect
+		conn.NumReconnects += 1
 		conn.Client, err = ethclient.Dial(conn.NodeUri)
 		if err != nil {
 			log.Printf("[conn %s] err at ResubscribeAfterTimeout syncProgressCheck->reconnect: %v\n", conn.NodeUri, err)
