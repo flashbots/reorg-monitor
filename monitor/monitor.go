@@ -91,7 +91,7 @@ func (mon *ReorgMonitor) String() string {
 
 func (mon *ReorgMonitor) ConnectClients() error {
 	for _, nodeUri := range mon.gethNodeUris {
-		gethConn, err := NewGethConnection(nodeUri)
+		gethConn, err := NewGethConnection(nodeUri, mon.NewBlockChan)
 		if err != nil {
 			return err
 		}
@@ -107,7 +107,7 @@ func (mon *ReorgMonitor) ConnectClients() error {
 func (mon *ReorgMonitor) SubscribeAndListen() {
 	// Subscribe to new blocks from all clients
 	for _, conn := range mon.connections {
-		go conn.Subscribe(mon.NewBlockChan)
+		go conn.Subscribe()
 	}
 
 	// Wait for new blocks and process them (blocking)

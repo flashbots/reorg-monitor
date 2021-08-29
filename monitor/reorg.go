@@ -94,6 +94,13 @@ func (r *Reorg) Finalize(firstBlockWithoutSiblings *Block) {
 	r.IsCompleted = true
 	r.FirstBlockAfterReorg = firstBlockWithoutSiblings
 
+	// Find all involved nodes
+	for _, block := range r.BlocksInvolved {
+		r.NodesInvolved[block.NodeUri] = true
+	}
+
+	r.Depth = int(r.EndBlockHeight) - int(r.StartBlockHeight) + 1
+
 	// Find canonical mainchain
 	r.MainChain = make([]*Block, 0)
 	r.MainChainHashes = make(map[common.Hash]bool)
@@ -120,13 +127,7 @@ func (r *Reorg) Finalize(firstBlockWithoutSiblings *Block) {
 		r.MainChain[i], r.MainChain[j] = r.MainChain[j], r.MainChain[i]
 	}
 
-	// Find all involved nodes
-	for _, block := range r.BlocksInvolved {
-		r.NodesInvolved[block.NodeUri] = true
-	}
-
 	r.NumReplacedBlocks = len(r.BlocksInvolved) - len(r.MainChain)
-	r.Depth = int(r.EndBlockHeight) - int(r.StartBlockHeight) + 1
 }
 
 func (r *Reorg) MermaidSyntax() string {
