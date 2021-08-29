@@ -7,11 +7,11 @@ import (
 	"math/big"
 	"reflect"
 	"strconv"
-	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/metachris/eth-reorg-monitor/analysis"
 	"github.com/metachris/eth-reorg-monitor/monitor"
 	"github.com/metachris/eth-reorg-monitor/reorgutils"
 )
@@ -33,7 +33,7 @@ func ConnectClient(uri string) error {
 }
 
 func ResetMon(nick string) {
-	reorgChan := make(chan *monitor.Reorg)
+	reorgChan := make(chan *analysis.Reorg)
 	Monitor = monitor.NewReorgMonitor([]string{EthNodeUri}, reorgChan, true)
 	err := Monitor.ConnectClients()
 	reorgutils.Perror(err)
@@ -55,26 +55,35 @@ func BlocksForStrings(blockStrings []string) (ret []*types.Block) {
 
 func AddBlockAndPrintNewline(blocks ...*types.Block) {
 	for _, ethBlock := range blocks {
-		block := monitor.NewBlock(ethBlock, monitor.OriginSubscription, EthNodeUri)
+		block := analysis.NewBlock(ethBlock, analysis.OriginSubscription, EthNodeUri)
 		Monitor.AddBlock(block)
 		// fmt.Println("")
 	}
 }
 
-func ReorgCheckAndPrint() []*monitor.Reorg {
+func ReorgCheckAndPrint() {
 	fmt.Println("\n---\n ")
-	reorgs := Monitor.CheckForReorgs(100, 0)
-	// fmt.Println("\n---\n ")
-
-	fmt.Println("Summary for", Monitor.String())
-	fmt.Println("")
-	for _, reorg := range reorgs {
-		fmt.Println(reorg)
-		fmt.Println("- mainchain:", strings.Join(reorg.GetMainChainHashes(), ", "))
-		fmt.Println("- discarded:", strings.Join(reorg.GetReplacedBlockHashes(), ", "))
+	analysis, err := Monitor.AnalyzeTree(100, 0)
+	if err != nil {
+		fmt.Println(err)
+		return
 	}
+
+	analysis.Tree.Print()
 	fmt.Println("")
-	return reorgs
+	analysis.Print()
+
+	// // fmt.Println("\n---\n ")
+
+	// fmt.Println("Summary for", Monitor.String())
+	// fmt.Println("")
+	// for _, reorg := range reorgs {
+	// 	fmt.Println(reorg)
+	// 	// fmt.Println("- mainchain:", strings.Join(reorg.GetMainChainHashes(), ", "))
+	// 	// fmt.Println("- discarded:", strings.Join(reorg.GetReplacedBlockHashes(), ", "))
+	// }
+	// fmt.Println("")
+	// return reorgs
 }
 
 func GetBlockByHashStr(hashStr string) *types.Block {

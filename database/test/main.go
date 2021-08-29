@@ -2,12 +2,11 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"os"
 
+	"github.com/metachris/eth-reorg-monitor/analysis"
 	"github.com/metachris/eth-reorg-monitor/database"
-	"github.com/metachris/eth-reorg-monitor/monitor"
 	"github.com/metachris/eth-reorg-monitor/reorgutils"
 	"github.com/metachris/eth-reorg-monitor/testutils"
 )
@@ -50,22 +49,22 @@ func main() {
 
 	// Add the blocks
 	for _, ethBlock := range testutils.BlocksForStrings(test.BlockInfo) {
-		block := monitor.NewBlock(ethBlock, monitor.OriginSubscription, *ethUriPtr)
+		block := analysis.NewBlock(ethBlock, analysis.OriginSubscription, *ethUriPtr)
 		testutils.Monitor.AddBlock(block)
 	}
 
-	reorgs := testutils.ReorgCheckAndPrint()
-	testutils.Pcheck("NumReorgs", len(reorgs), 1)
+	// reorgs := testutils.ReorgCheckAndPrint()
+	// testutils.Pcheck("NumReorgs", len(reorgs), 1)
 
-	reorg := reorgs[0]
-	fmt.Println(reorg)
+	// reorg := reorgs[0]
+	// fmt.Println(reorg)
 
-	entry := database.NewReorgEntry(reorg)
-	db.AddReorgEntry(entry)
+	// entry := database.NewReorgEntry(reorg)
+	// db.AddReorgEntry(entry)
 
-	// blocks
-	for _, block := range reorg.BlocksInvolved {
-		blockEntry := database.NewBlockEntry(block, reorg)
-		db.AddBlockEntry(blockEntry)
-	}
+	// // blocks
+	// for _, block := range reorg.BlocksInvolved {
+	// 	blockEntry := database.NewBlockEntry(block, reorg)
+	// 	db.AddBlockEntry(blockEntry)
+	// }
 }

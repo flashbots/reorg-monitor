@@ -1,4 +1,5 @@
-package monitor
+// Incoming Ethereum Block from a client, with some information where it came from.
+package analysis
 
 import (
 	"fmt"

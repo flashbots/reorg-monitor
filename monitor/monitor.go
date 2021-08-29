@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/metachris/eth-reorg-monitor/analysis"
 	"github.com/pkg/errors"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -17,19 +18,19 @@ type ReorgMonitor struct {
 	connections  map[string]*GethConnection
 	verbose      bool
 
-	NewBlockChan chan *Block
-	NewReorgChan chan<- *Reorg
+	NewBlockChan chan *analysis.Block
+	NewReorgChan chan<- *analysis.Reorg
 
-	BlockByHash    map[common.Hash]*Block
-	BlocksByHeight map[uint64]map[common.Hash]*Block
+	BlockByHash    map[common.Hash]*analysis.Block
+	BlocksByHeight map[uint64]map[common.Hash]*analysis.Block
 
 	EarliestBlockNumber uint64
 	LatestBlockNumber   uint64
 
-	Reorgs map[string]*Reorg
+	Reorgs map[string]*analysis.Reorg
 }
 
-func NewReorgMonitor(gethNodeUris []string, reorgChan chan<- *Reorg, verbose bool) *ReorgMonitor {
+func NewReorgMonitor(gethNodeUris []string, reorgChan chan<- *analysis.Reorg, verbose bool) *ReorgMonitor {
 	return &ReorgMonitor{
 		verbose:          verbose,
 		maxBlocksInCache: 1000,
@@ -37,12 +38,12 @@ func NewReorgMonitor(gethNodeUris []string, reorgChan chan<- *Reorg, verbose boo
 		gethNodeUris: gethNodeUris,
 		connections:  make(map[string]*GethConnection),
 
-		NewBlockChan: make(chan *Block, 100),
+		NewBlockChan: make(chan *analysis.Block, 100),
 		NewReorgChan: reorgChan,
 
-		BlockByHash:    make(map[common.Hash]*Block),
-		BlocksByHeight: make(map[uint64]map[common.Hash]*Block),
-		Reorgs:         make(map[string]*Reorg),
+		BlockByHash:    make(map[common.Hash]*analysis.Block),
+		BlocksByHeight: make(map[uint64]map[common.Hash]*analysis.Block),
+		Reorgs:         make(map[string]*analysis.Reorg),
 	}
 }
 
@@ -63,7 +64,7 @@ func (mon *ReorgMonitor) ConnectClients() error {
 	return nil
 }
 
-// SubscribeAndListen subscribes to new blocks from all geth connections, and waits for new blocks to process.
+// SubscribeAndListen is the main monitor loop: subscribes to new blocks from all geth connections, and waits for new blocks to process.
 // After adding a new block, a reorg check takes place. If a new completed reorg is detected, it is sent to the channel.
 func (mon *ReorgMonitor) SubscribeAndListen() {
 	// Subscribe to new blocks from all clients
@@ -83,22 +84,22 @@ func (mon *ReorgMonitor) SubscribeAndListen() {
 
 		// Check for reorgs once we are at new block height
 		lastBlockHeight = block.Number
-		completedReorgs := mon.CheckForReorgs(0, 2)
-		for _, reorg := range completedReorgs {
-			// Send new reorgs to channel
-			if _, isKnownReorg := mon.Reorgs[reorg.Id()]; !isKnownReorg {
-				mon.Reorgs[reorg.Id()] = reorg
-				mon.NewReorgChan <- reorg
-			}
-		}
+		// completedReorgs := mon.CheckForReorgs(0, 2)
+		// for _, reorg := range completedReorgs {
+		// 	// Send new reorgs to channel
+		// 	if _, isKnownReorg := mon.Reorgs[reorg.Id()]; !isKnownReorg {
+		// 		mon.Reorgs[reorg.Id()] = reorg
+		// 		mon.NewReorgChan <- reorg
+		// 	}
+		// }
 	}
 }
 
 // AddBlock adds a block to history if it hasn't been seen before, and download unknown referenced blocks (parent, uncles).
-func (mon *ReorgMonitor) AddBlock(block *Block) bool {
+func (mon *ReorgMonitor) AddBlock(block *analysis.Block) bool {
 	// If known, then only overwrite if known was by uncle
 	knownBlock, isKnown := mon.BlockByHash[block.Hash]
-	if isKnown && knownBlock.Origin != OriginUncle {
+	if isKnown && knownBlock.Origin != analysis.OriginUncle {
 		return false
 	}
 
@@ -116,7 +117,7 @@ func (mon *ReorgMonitor) AddBlock(block *Block) bool {
 
 	// Create array of blocks at this height, if necessary
 	if _, found := mon.BlocksByHeight[block.Number]; !found {
-		mon.BlocksByHeight[block.Number] = make(map[common.Hash]*Block)
+		mon.BlocksByHeight[block.Number] = make(map[common.Hash]*analysis.Block)
 	}
 
 	// Add to map of blocks at this height
@@ -167,12 +168,12 @@ func (mon *ReorgMonitor) TrimCache() {
 	}
 }
 
-func (mon *ReorgMonitor) CheckBlockForReferences(block *Block) error {
+func (mon *ReorgMonitor) CheckBlockForReferences(block *analysis.Block) error {
 	// Check parent
 	_, found := mon.BlockByHash[block.ParentHash]
 	if !found {
 		// fmt.Printf("- parent of %d %s not found (%s), downloading...\n", block.Number, block.Hash, block.ParentHash)
-		_, _, err := mon.EnsureBlock(block.ParentHash, OriginGetParent, block.NodeUri)
+		_, _, err := mon.EnsureBlock(block.ParentHash, analysis.OriginGetParent, block.NodeUri)
 		if err != nil {
 			return errors.Wrap(err, "get-parent error")
 		}
@@ -181,7 +182,7 @@ func (mon *ReorgMonitor) CheckBlockForReferences(block *Block) error {
 	// Check uncles
 	for _, uncleHeader := range block.Block.Uncles() {
 		// fmt.Printf("- block %d %s has uncle: %s\n", block.Number, block.Hash, uncleHeader.Hash())
-		_, _, err := mon.EnsureBlock(uncleHeader.Hash(), OriginUncle, block.NodeUri)
+		_, _, err := mon.EnsureBlock(uncleHeader.Hash(), analysis.OriginUncle, block.NodeUri)
 		if err != nil {
 			return errors.Wrap(err, "get-uncle error")
 		}
@@ -191,7 +192,7 @@ func (mon *ReorgMonitor) CheckBlockForReferences(block *Block) error {
 	return nil
 }
 
-func (mon *ReorgMonitor) EnsureBlock(blockHash common.Hash, origin BlockOrigin, nodeUri string) (block *Block, alreadyExisted bool, err error) {
+func (mon *ReorgMonitor) EnsureBlock(blockHash common.Hash, origin analysis.BlockOrigin, nodeUri string) (block *analysis.Block, alreadyExisted bool, err error) {
 	// Check and potentially download block
 	var found bool
 	block, found = mon.BlockByHash[blockHash]
@@ -208,15 +209,52 @@ func (mon *ReorgMonitor) EnsureBlock(blockHash common.Hash, origin BlockOrigin, 
 		return nil, false, errors.Wrap(err, msg)
 	}
 
-	block = NewBlock(ethBlock, origin, nodeUri)
+	block = analysis.NewBlock(ethBlock, origin, nodeUri)
 
 	// Add a new block without sending to channel, because that makes reorg.AddBlock() asynchronous, but we want reorg.AddBlock() to wait until all references are added.
 	mon.AddBlock(block)
 	return block, false, nil
 }
 
-func (mon *ReorgMonitor) CheckForReorgs(maxBlocks uint64, distanceToLastBlockHeight uint64) []*Reorg {
-	reorgs := make([]*Reorg, 0)
+func (mon *ReorgMonitor) AnalyzeTree(maxBlocks uint64, distanceToLastBlockHeight uint64) (*analysis.TreeAnalysis, error) {
+	// Set end height of search
+	endBlockNumber := mon.LatestBlockNumber - distanceToLastBlockHeight
+
+	// Set start height of search
+	startBlockNumber := mon.EarliestBlockNumber
+	if maxBlocks > 0 && endBlockNumber-maxBlocks > mon.EarliestBlockNumber {
+		startBlockNumber = endBlockNumber - maxBlocks
+	}
+
+	// Build tree datastructure
+	tree := analysis.NewBlockTree()
+	for height := startBlockNumber; height <= endBlockNumber; height++ {
+		// mon.DebugPrintln("CheckForReorgs at height", height)
+		numBlocksAtHeight := len(mon.BlocksByHeight[height])
+		if numBlocksAtHeight == 0 {
+			fmt.Println("error in CheckForReorgs: no blocks at height", height)
+			break
+		}
+
+		for _, currentBlock := range mon.BlocksByHeight[height] {
+			err := tree.AddBlock(currentBlock)
+			if err != nil {
+				fmt.Println(err)
+				break
+			}
+		}
+	}
+
+	analysis, err := analysis.NewTreeAnalysis(tree)
+	if err != nil {
+		return nil, errors.Wrap(err, "error in CheckForReorgs->Analyze")
+	}
+
+	return analysis, nil
+}
+
+func (mon *ReorgMonitor) CheckForReorgsOld(maxBlocks uint64, distanceToLastBlockHeight uint64) []*analysis.Reorg {
+	reorgs := make([]*analysis.Reorg, 0)
 
 	// Set end height of search
 	endBlockNumber := mon.LatestBlockNumber - distanceToLastBlockHeight
@@ -228,7 +266,7 @@ func (mon *ReorgMonitor) CheckForReorgs(maxBlocks uint64, distanceToLastBlockHei
 	}
 
 	// Pointer to the current open reorg
-	var currentReorg *Reorg
+	var currentReorg *analysis.Reorg
 
 	// Iterate over all blocks in the search range to find reorgs
 	for height := startBlockNumber; height <= endBlockNumber; height++ {
@@ -241,21 +279,21 @@ func (mon *ReorgMonitor) CheckForReorgs(maxBlocks uint64, distanceToLastBlockHei
 				continue
 			}
 
-			// end of reorg when only 1 block is left
-			for _, currentBlock := range mon.BlocksByHeight[height] {
-				currentReorg.Finalize(currentBlock)
-				reorgs = append(reorgs, currentReorg)
-				currentReorg = nil
-			}
-		} else { // > 1 block at this height, reorg in progress
-			if currentReorg == nil {
-				currentReorg = NewReorg()
-			}
+			// 	// end of reorg when only 1 block is left
+			// 	for _, currentBlock := range mon.BlocksByHeight[height] {
+			// 		currentReorg.Finalize(currentBlock)
+			// 		reorgs = append(reorgs, currentReorg)
+			// 		currentReorg = nil
+			// 	}
+			// } else { // > 1 block at this height, reorg in progress
+			// 	if currentReorg == nil {
+			// 		currentReorg = analysis.NewReorg()
+			// 	}
 
-			// Add all blocks at this height. TODO: a new reorg could be started here
-			for _, block := range mon.BlocksByHeight[height] {
-				currentReorg.AddBlock(block)
-			}
+			// 	// Add all blocks at this height. TODO: a new reorg could be started here
+			// 	for _, block := range mon.BlocksByHeight[height] {
+			// 		currentReorg.AddBlock(block)
+			// 	}
 		}
 	}
 

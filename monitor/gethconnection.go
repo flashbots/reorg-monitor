@@ -9,12 +9,13 @@ import (
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/metachris/eth-reorg-monitor/analysis"
 )
 
 type GethConnection struct {
 	NodeUri      string
 	Client       *ethclient.Client
-	NewBlockChan chan<- *Block
+	NewBlockChan chan<- *analysis.Block
 
 	IsConnected         bool
 	IsSubscribed        bool
@@ -25,7 +26,7 @@ type GethConnection struct {
 	NumBlocks       uint64
 }
 
-func NewGethConnection(nodeUri string, newBlockChan chan<- *Block) (*GethConnection, error) {
+func NewGethConnection(nodeUri string, newBlockChan chan<- *analysis.Block) (*GethConnection, error) {
 	conn := GethConnection{
 		NodeUri:             nodeUri,
 		NewBlockChan:        newBlockChan,
@@ -87,7 +88,7 @@ func (conn *GethConnection) Subscribe() error {
 			}
 
 			// Add the block
-			newBlock := NewBlock(ethBlock, OriginSubscription, conn.NodeUri)
+			newBlock := analysis.NewBlock(ethBlock, analysis.OriginSubscription, conn.NodeUri)
 			conn.NewBlockChan <- newBlock
 		}
 	}

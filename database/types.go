@@ -4,7 +4,7 @@ import (
 	"math/big"
 
 	_ "github.com/lib/pq"
-	"github.com/metachris/eth-reorg-monitor/monitor"
+	"github.com/metachris/eth-reorg-monitor/analysis"
 	"github.com/metachris/eth-reorg-monitor/reorgutils"
 	flashbotsrpc "github.com/metachris/flashbots-rpc"
 )
@@ -73,7 +73,7 @@ type ReorgEntry struct {
 	MermaidSyntax     string
 }
 
-func NewReorgEntry(reorg *monitor.Reorg) ReorgEntry {
+func NewReorgEntry(reorg *analysis.Reorg) ReorgEntry {
 	return ReorgEntry{
 		Key:               reorg.Id(),
 		SeenLive:          reorg.SeenLive,
@@ -117,9 +117,9 @@ type BlockEntry struct {
 	MevGeth_EthSentToCoinbase string
 }
 
-func NewBlockEntry(block *monitor.Block, reorg *monitor.Reorg) BlockEntry {
+func NewBlockEntry(block *analysis.Block, reorg *analysis.Reorg) BlockEntry {
 	_, isPartOfReorg := reorg.BlocksInvolved[block.Hash]
-	_, isMainChain := reorg.MainChainHashes[block.Hash]
+	_, isMainChain := reorg.MainChainBlocks[block.Hash]
 	isUncle := !isMainChain && block.Number == reorg.StartBlockHeight
 	isChild := !isMainChain && !isUncle
 

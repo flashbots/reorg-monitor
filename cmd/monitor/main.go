@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/metachris/eth-reorg-monitor/analysis"
 	"github.com/metachris/eth-reorg-monitor/database"
 	"github.com/metachris/eth-reorg-monitor/monitor"
 	"github.com/metachris/eth-reorg-monitor/reorgutils"
@@ -17,7 +17,7 @@ import (
 var saveToDb = false
 var simulateBlocksWithMevGeth = false
 
-var Reorgs map[string]*monitor.Reorg = make(map[string]*monitor.Reorg)
+var Reorgs map[string]*analysis.Reorg = make(map[string]*analysis.Reorg)
 var db *database.DatabaseService
 var rpc *flashbotsrpc.FlashbotsRPC
 var callBundlePrivKey, _ = crypto.GenerateKey()
@@ -71,7 +71,7 @@ func main() {
 	}
 
 	// Channel to receive reorgs from monitor
-	reorgChan := make(chan *monitor.Reorg)
+	reorgChan := make(chan *analysis.Reorg)
 
 	// Setup and start the monitor
 	mon := monitor.NewReorgMonitor(ethUris, reorgChan, true)
@@ -91,7 +91,7 @@ func main() {
 	}
 }
 
-func handleReorg(reorg *monitor.Reorg) {
+func handleReorg(reorg *analysis.Reorg) {
 	_, found := Reorgs[reorg.Id()]
 	if found {
 		return
@@ -101,8 +101,8 @@ func handleReorg(reorg *monitor.Reorg) {
 	Reorgs[reorg.Id()] = reorg
 
 	log.Println(reorg)
-	fmt.Println("- mainchain:", strings.Join(reorg.GetMainChainHashes(), ", "))
-	fmt.Println("- discarded:", strings.Join(reorg.GetReplacedBlockHashes(), ", "))
+	// fmt.Println("- mainchain:", strings.Join(reorg.GetMainChainHashes(), ", "))
+	// fmt.Println("- discarded:", strings.Join(reorg.GetReplacedBlockHashes(), ", "))
 
 	if saveToDb {
 		entry := database.NewReorgEntry(reorg)
