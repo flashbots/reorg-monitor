@@ -97,12 +97,19 @@ func handleReorg(reorg *analysis.Reorg) {
 		return
 	}
 
-	// new reorg
+	// new reorg: remember and print
 	Reorgs[reorg.Id()] = reorg
 
-	log.Println(reorg)
-	// fmt.Println("- mainchain:", strings.Join(reorg.GetMainChainHashes(), ", "))
-	// fmt.Println("- discarded:", strings.Join(reorg.GetReplacedBlockHashes(), ", "))
+	log.Println(reorg.String())
+	fmt.Println("- common parent:", reorg.CommonParent.Hash)
+	fmt.Println("- first block after:", reorg.FirstBlockAfterReorg.Hash)
+	for _, chain := range reorg.Chains {
+		fmt.Printf("- chain l=%d: ", len(chain))
+		for _, block := range chain {
+			fmt.Printf("%s ", block.Hash)
+		}
+		fmt.Print("\n")
+	}
 
 	if saveToDb {
 		entry := database.NewReorgEntry(reorg)
@@ -141,6 +148,6 @@ func handleReorg(reorg *analysis.Reorg) {
 
 	if reorg.NumReplacedBlocks > 1 {
 		fmt.Println(reorg.MermaidSyntax())
-		fmt.Println("")
 	}
+	fmt.Println("")
 }

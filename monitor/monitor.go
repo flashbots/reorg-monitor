@@ -82,16 +82,29 @@ func (mon *ReorgMonitor) SubscribeAndListen() {
 			continue
 		}
 
-		// Check for reorgs once we are at new block height
+		if len(mon.BlocksByHeight) < 3 {
+			continue
+		}
+
+		// Analyze blocks once a new height has been reached
 		lastBlockHeight = block.Number
-		// completedReorgs := mon.CheckForReorgs(0, 2)
-		// for _, reorg := range completedReorgs {
-		// 	// Send new reorgs to channel
-		// 	if _, isKnownReorg := mon.Reorgs[reorg.Id()]; !isKnownReorg {
-		// 		mon.Reorgs[reorg.Id()] = reorg
-		// 		mon.NewReorgChan <- reorg
-		// 	}
-		// }
+		analysis, err := mon.AnalyzeTree(0, 2)
+		if err != nil {
+			log.Println("error in SubscribeAndListen->AnalyzeTree", err)
+			continue
+		}
+
+		for _, reorg := range analysis.Reorgs {
+			if !reorg.IsFinished { // don't care about unfinished reorgs
+				continue
+			}
+
+			// Send new finished reorgs to channel
+			if _, isKnownReorg := mon.Reorgs[reorg.Id()]; !isKnownReorg {
+				mon.Reorgs[reorg.Id()] = reorg
+				mon.NewReorgChan <- reorg
+			}
+		}
 	}
 }
 
@@ -229,73 +242,25 @@ func (mon *ReorgMonitor) AnalyzeTree(maxBlocks uint64, distanceToLastBlockHeight
 	// Build tree datastructure
 	tree := analysis.NewBlockTree()
 	for height := startBlockNumber; height <= endBlockNumber; height++ {
-		// mon.DebugPrintln("CheckForReorgs at height", height)
+		// fmt.Println("checkblock at height", height)
 		numBlocksAtHeight := len(mon.BlocksByHeight[height])
 		if numBlocksAtHeight == 0 {
-			fmt.Println("error in CheckForReorgs: no blocks at height", height)
-			break
+			err := fmt.Errorf("error in CheckForReorgs: no blocks at height %d", height)
+			return nil, err
 		}
 
 		for _, currentBlock := range mon.BlocksByHeight[height] {
 			err := tree.AddBlock(currentBlock)
 			if err != nil {
-				fmt.Println(err)
-				break
+				return nil, errors.Wrap(err, "monitor.AnalyzeTree tree.AddBlock error")
 			}
 		}
 	}
 
 	analysis, err := analysis.NewTreeAnalysis(tree)
 	if err != nil {
-		return nil, errors.Wrap(err, "error in CheckForReorgs->Analyze")
+		return nil, errors.Wrap(err, "monitor.AnalyzeTree NewTreeAnalysis error")
 	}
 
 	return analysis, nil
-}
-
-func (mon *ReorgMonitor) CheckForReorgsOld(maxBlocks uint64, distanceToLastBlockHeight uint64) []*analysis.Reorg {
-	reorgs := make([]*analysis.Reorg, 0)
-
-	// Set end height of search
-	endBlockNumber := mon.LatestBlockNumber - distanceToLastBlockHeight
-
-	// Set start height of search
-	startBlockNumber := mon.EarliestBlockNumber
-	if maxBlocks > 0 && endBlockNumber-maxBlocks > mon.EarliestBlockNumber {
-		startBlockNumber = endBlockNumber - maxBlocks
-	}
-
-	// Pointer to the current open reorg
-	var currentReorg *analysis.Reorg
-
-	// Iterate over all blocks in the search range to find reorgs
-	for height := startBlockNumber; height <= endBlockNumber; height++ {
-		// mon.DebugPrintln("CheckForReorgs at height", height)
-		numBlocksAtHeight := len(mon.BlocksByHeight[height])
-		if numBlocksAtHeight == 0 {
-			fmt.Printf("CheckForReorgs: no block at height %d found\n", height)
-		} else if numBlocksAtHeight == 1 {
-			if currentReorg == nil {
-				continue
-			}
-
-			// 	// end of reorg when only 1 block is left
-			// 	for _, currentBlock := range mon.BlocksByHeight[height] {
-			// 		currentReorg.Finalize(currentBlock)
-			// 		reorgs = append(reorgs, currentReorg)
-			// 		currentReorg = nil
-			// 	}
-			// } else { // > 1 block at this height, reorg in progress
-			// 	if currentReorg == nil {
-			// 		currentReorg = analysis.NewReorg()
-			// 	}
-
-			// 	// Add all blocks at this height. TODO: a new reorg could be started here
-			// 	for _, block := range mon.BlocksByHeight[height] {
-			// 		currentReorg.AddBlock(block)
-			// 	}
-		}
-	}
-
-	return reorgs
 }

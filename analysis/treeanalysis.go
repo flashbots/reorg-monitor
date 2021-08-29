@@ -9,28 +9,26 @@ type TreeAnalysis struct {
 
 	StartBlockHeight uint64 // first block number with siblings
 	EndBlockHeight   uint64
+	IsSplitOngoing   bool
 
 	NumBlocks          int
 	NumBlocksMainChain int
-	NumReorgs          int
-	IsSplitOngoing     bool
 
 	Reorgs map[string]*Reorg
 }
 
 func NewTreeAnalysis(t *BlockTree) (*TreeAnalysis, error) {
-	if t.FirstNode == nil {
-		return nil, fmt.Errorf("error in BlockTree.Analyze: tree has no first block")
-	}
-
-	lastNode := t.LatestNodes[0] // there's always at least one
-
 	analysis := TreeAnalysis{
-		Tree:             t,
-		StartBlockHeight: t.FirstNode.Block.Number,
-		EndBlockHeight:   lastNode.Block.Number,
-		Reorgs:           make(map[string]*Reorg),
+		Tree:   t,
+		Reorgs: make(map[string]*Reorg),
 	}
+
+	if t.FirstNode == nil { // empty analysis for empty tree
+		return &analysis, nil
+	}
+
+	analysis.StartBlockHeight = t.FirstNode.Block.Number
+	analysis.EndBlockHeight = t.LatestNodes[0].Block.Number
 
 	if len(t.LatestNodes) > 1 {
 		analysis.IsSplitOngoing = true
@@ -54,7 +52,7 @@ func NewTreeAnalysis(t *BlockTree) (*TreeAnalysis, error) {
 }
 
 func (a *TreeAnalysis) Print() {
-	fmt.Printf("TreeAnalysis %d - %d \t nodes: %d, mainchain: %d, many children: %d\n", a.StartBlockHeight, a.EndBlockHeight, a.NumBlocks, a.NumBlocksMainChain, a.NumReorgs)
+	fmt.Printf("TreeAnalysis %d - %d \t nodes: %d, mainchain: %d, reorgs: %d\n", a.StartBlockHeight, a.EndBlockHeight, a.NumBlocks, a.NumBlocksMainChain, len(a.Reorgs))
 	if a.IsSplitOngoing {
 		fmt.Println("- split ongoing")
 	}

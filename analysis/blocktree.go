@@ -57,6 +57,7 @@ func (t *BlockTree) AddBlock(block *Block) error {
 	if t.FirstNode == nil {
 		node := NewTreeNode(block, nil)
 		t.FirstNode = node
+		t.LatestNodes = []*TreeNode{node}
 		t.NodeByHash[block.Hash] = node
 		return nil
 	}

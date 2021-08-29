@@ -12,14 +12,13 @@ import (
 // }
 
 type Reorg struct {
-	IsCompleted bool
-	SeenLive    bool
+	IsFinished bool
+	SeenLive   bool
 
 	StartBlockHeight uint64 // first block number with siblings
 	EndBlockHeight   uint64
 
-	Chains     map[common.Hash][]*Block
-	IsFinished bool
+	Chains map[common.Hash][]*Block
 
 	Depth             int
 	Width             int
