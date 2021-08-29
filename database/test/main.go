@@ -26,7 +26,7 @@ func main() {
 
 	log.SetOutput(os.Stdout)
 
-	ethUriPtr := flag.String("eth", os.Getenv("ETH_NODE1"), "Geth node URI")
+	ethUriPtr := flag.String("eth", os.Getenv("GETH_ETH1LOCAL"), "Geth node URI")
 	flag.Parse()
 
 	if *ethUriPtr == "" {

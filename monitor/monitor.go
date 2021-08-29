@@ -209,8 +209,9 @@ func (mon *ReorgMonitor) EnsureBlock(blockHash common.Hash, origin BlockOrigin, 
 	}
 
 	block = NewBlock(ethBlock, origin, nodeUri)
-	// mon.AddBlock(block)
-	mon.NewBlockChan <- block
+
+	// Add a new block without sending to channel, because that makes reorg.AddBlock() asynchronous, but we want reorg.AddBlock() to wait until all references are added.
+	mon.AddBlock(block)
 	return block, false, nil
 }
 

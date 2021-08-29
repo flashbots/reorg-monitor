@@ -6,13 +6,15 @@ Detect Ethereum reorgs with the depth, and print replaced and new blocks.
 * Can query a mev-geth instance for block value
 * Can monitor multiple geth nodes at once (the more the better)
 
+It's work in progress is not yet bug-free.
+
 ---
 
 ## Getting started
 
 * Clone this repository
-* Create a `.env` file based on `.env.example`
-* Start the monitor
+* See `.env.example` for example environment variables
+* Start the monitor:
 
 
 ```bash
@@ -29,8 +31,8 @@ $ go run cmd/monitor/main.go -h
         simulate blocks in mev-geth
 ```
 
-The code needs a subscription to a geth node, either a local IPC connection or a `ws://` URI.
-You can set the geth node with `-eth <geth_node_url>` or use an `ETH_NODE` environment variable.
+The monitor needs a subscription to one or multiple geth/mev-geth nodes, either a local IPC connection or a `ws://` URI.
+You can set the geth node with `-eth <geth_node_url>` or use an `ETH_NODES` environment variable.
 
 Notes: 
 

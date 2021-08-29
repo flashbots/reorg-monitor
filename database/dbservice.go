@@ -87,7 +87,7 @@ func (s *DatabaseService) AddReorgEntry(entry ReorgEntry) error {
 
 func (s *DatabaseService) AddBlockEntry(entry BlockEntry) error {
 	var count int
-	err := s.DB.QueryRow("SELECT COUNT(*) FROM reorg_block WHERE BlockHash = $1", strings.ToLower(entry.BlockHash)).Scan(&count)
+	err := s.DB.QueryRow("SELECT COUNT(*) FROM reorg_block WHERE Reorg_Key = $1 AND BlockHash = $2", entry.Reorg_Key, strings.ToLower(entry.BlockHash)).Scan(&count)
 	if err != nil {
 		return err
 	}
