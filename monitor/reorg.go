@@ -31,6 +31,7 @@ func NewReorg() *Reorg {
 		NodesInvolved:   make(map[string]bool),
 		MainChain:       make([]*Block, 0),
 		MainChainHashes: make(map[common.Hash]bool),
+		SeenLive:        true, // will be set to false if any of the added blocks was received via uncle-info
 	}
 }
 
@@ -68,16 +69,21 @@ func (r *Reorg) GetReplacedBlockHashes() []string {
 }
 
 func (r *Reorg) AddBlock(block *Block) {
-	if _, found := r.BlocksInvolved[block.Hash]; found {
-		// alredy known
+	if _, found := r.BlocksInvolved[block.Hash]; found { // alredy known
 		return
 	}
 
-	if len(r.BlocksInvolved) == 0 { // first block
-		r.LastBlockHashBeforeReorg = block.ParentHash
+	// Remember this block
+	r.BlocksInvolved[block.Hash] = block
+
+	if block.Origin == OriginUncle { // one block as uncle means the reorg hasn't been seen live
+		r.SeenLive = false
 	}
 
-	r.BlocksInvolved[block.Hash] = block
+	if r.StartBlockHeight == 0 || block.Number < r.StartBlockHeight {
+		r.StartBlockHeight = block.Number
+		r.LastBlockHashBeforeReorg = block.ParentHash // common parent must be block before earliest block in this reorg
+	}
 
 	if block.Number > r.EndBlockHeight {
 		r.EndBlockHeight = block.Number
@@ -100,7 +106,7 @@ func (r *Reorg) Finalize(firstBlockWithoutSiblings *Block) {
 
 		block, found := r.BlocksInvolved[curBlockHash]
 		if !found {
-			fmt.Printf("err in Finalize: couldn't find block")
+			fmt.Printf("error in reorg.Finalize: couldn't find block %s, %s\n", curBlockHash, r.String())
 			break
 		}
 

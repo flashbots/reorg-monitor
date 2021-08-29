@@ -40,15 +40,20 @@ Notes:
 
 ## TODO
 
-Important:
-
-* GethConnection: reconnect (retry with backoff)
-* better reorg detection: currently counts 2x depth-1 reorg as one depth-2 reorg
+* Reorg detection: currently counts 2x depth-1 reorg as one depth-2 reorg
+* GethConnection: reconnect, retry with backoff
 
 Less important:
 
-* cmd to simulate blocks from the database that had an error before
+* add webserver / API
+  * get status of nodes
+  * add or remove nodes
+* cmd to simulate old blocks in the database (eg. which had an error before)
 * pool of mev-geth instances for simulating blocks
+
+Errors, trying to reproduce:
+
+* `err in Finalize` (can't find parent in reorg.InvolvedBlocks)
 
 ---
 

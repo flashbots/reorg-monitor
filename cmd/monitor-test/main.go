@@ -14,15 +14,16 @@ import (
 func main() {
 	log.SetOutput(os.Stdout)
 
-	ethUriPtr := flag.String("eth", os.Getenv("ETH_NODE"), "Geth node URI")
+	ethUriPtr := flag.String("eth", os.Getenv("ETH_NODES"), "Geth node URI")
 	flag.Parse()
 
-	if *ethUriPtr == "" {
+	ethUris := reorgutils.EthUrisFromString(*ethUriPtr)
+	if len(ethUris) == 0 {
 		log.Fatal("Missing eth node uri")
 	}
 
-	testutils.EthNodeUri = *ethUriPtr
-	reorgutils.Perror(testutils.ConnectClient(*ethUriPtr))
+	testutils.EthNodeUri = ethUris[0]
+	reorgutils.Perror(testutils.ConnectClient(testutils.EthNodeUri))
 
 	// Test(testutils.Test_12996760_12996760_d1_b2)
 	// Test(testutils.Test_12996750_12996750_d1_b3)
@@ -30,10 +31,20 @@ func main() {
 	// Test(testutils.Test_12969887_12969889_d3_b6)
 	// Test(testutils.Test_13017535_13017536_d2_b5)
 	// Test(testutils.Test_13018369_13018370_d2_b4)
-	Test(testutils.Test_13033424_13033425_d2_b5)
+	TestAndVerify(testutils.Test_13033424_13033425_d2_b5)
 }
 
-func Test(testCase testutils.TestCase) {
+func CheckReorg(testCase testutils.TestCase) {
+	// Add the blocks
+	for _, ethBlock := range testutils.BlocksForStrings(testCase.BlockInfo) {
+		block := monitor.NewBlock(ethBlock, monitor.OriginSubscription, testutils.EthNodeUri)
+		testutils.Monitor.AddBlock(block)
+	}
+
+	testutils.ReorgCheckAndPrint()
+}
+
+func TestAndVerify(testCase testutils.TestCase) {
 	// Create a new monitor
 	testutils.ResetMon(testCase.Name)
 

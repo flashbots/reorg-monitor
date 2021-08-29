@@ -5,6 +5,7 @@ import (
 	"math"
 	"math/big"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/core/types"
@@ -54,4 +55,11 @@ var ColorGreen = "\033[1;32m%s\033[0m"
 func ColorPrintf(color string, format string, a ...interface{}) {
 	str := fmt.Sprintf(format, a...)
 	fmt.Printf(string(color), str)
+}
+
+func EthUrisFromString(s string) []string {
+	if s == "" {
+		return []string{}
+	}
+	return strings.Split(s, ",")
 }

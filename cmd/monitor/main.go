@@ -45,11 +45,10 @@ func main() {
 	mevGethUriPtr := flag.String("mevgeth", os.Getenv("MEVGETH_NODE"), "mev-geth node URI")
 	flag.Parse()
 
-	if *ethUriPtr == "" {
+	ethUris := reorgutils.EthUrisFromString(*ethUriPtr)
+	if len(ethUris) == 0 {
 		log.Fatal("Missing eth node uri")
 	}
-
-	ethUris := strings.Split(*ethUriPtr, ",")
 
 	if *mevGethSimPtr {
 		if *mevGethUriPtr == "" {
