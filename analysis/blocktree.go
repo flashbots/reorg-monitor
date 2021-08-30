@@ -51,8 +51,6 @@ func NewBlockTree() *BlockTree {
 }
 
 func (t *BlockTree) AddBlock(block *Block) error {
-	// fmt.Println("BlockTree.AddBlock", block.Number, block.Hash)
-
 	// First block is a special case
 	if t.FirstNode == nil {
 		node := NewTreeNode(block, nil)
@@ -118,15 +116,16 @@ func PrintNodeAndChildren(node *TreeNode, depth int) {
 }
 
 func (t *BlockTree) Print() {
-	fmt.Printf("BlockTree - %d nodes\n", len(t.NodeByHash))
+	fmt.Printf("BlockTree: nodes=%d\n", len(t.NodeByHash))
 
-	// Traverse to print (from parent to all children)
 	if t.FirstNode == nil {
 		return
 	}
 
+	// Print tree by traversing from parent to all children
 	PrintNodeAndChildren(t.FirstNode, 1)
 
+	// Print latest nodes
 	fmt.Printf("Latest nodes:\n")
 	for _, n := range t.LatestNodes {
 		fmt.Println("-", n.String())
