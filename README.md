@@ -1,12 +1,12 @@
 # Ethereum Reorg Monitor
 
-Detect Ethereum reorgs with the depth, and print replaced and new blocks.
+Detect Ethereum reorgs:
 
-* Can save reorg summaries and block info in a Postgres database
-* Can query a mev-geth instance for block value
-* Can monitor multiple geth nodes at once (the more the better)
+* Monitor multiple geth nodes
+* Simulate blocks at a mev-geth instance for to get miner value
+* Save reorg summaries and block info in a Postgres database
 
-It's work in progress is not yet bug-free.
+This project is currently work in progress and there may be bugs. Please open issues if you find any, or want to contribute :)
 
 ---
 
@@ -57,10 +57,16 @@ Less important:
 
 ```bash
 # Show AddBlock from logs
-grep -v "AddBlock" output/monitor-new/run13.txt 
+grep -v "AddBlock" output.txt 
 
-# Get depth: 2 and higher reorgs
-grep "Reorg " output/monitor-new/run13.txt | grep -v "depth: 1"
+# Get reorgs with depth >1
+grep "Reorg 1" output.txt | grep -v "depth=1"
+
+# Get reorgs with >1 block replaced
+grep "Reorg 1" output.txt | grep -v "replaced=1"
+
+# Get reorgs with more than 2 chains
+grep "Reorg 1" output.txt | grep -v "chains=2"
 ```
 
 Mermaid:
