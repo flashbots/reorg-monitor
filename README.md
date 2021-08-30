@@ -24,15 +24,17 @@ $ go run cmd/monitor/main.go -h
   -debug
         print debug information
   -eth string
-        Geth node URI
-  -mevgeth string
-        mev-geth node URI
+        Geth node URIs (comma separated)
   -sim
         simulate blocks in mev-geth
+  -mevgeth string
+        mev-geth node URI for use with -sim
+  -webserver int
+        port for the webserver (0 to disable) (default 8094)
 ```
 
 The monitor needs a subscription to one or multiple geth/mev-geth nodes, either a local IPC connection or a `ws://` URI.
-You can set the geth node with `-eth <geth_node_url>` or use an `ETH_NODES` environment variable.
+You can set the geth node with `-eth <geth_node_urls>` or use an `ETH_NODES` environment variable (comma separated).
 
 Notes: 
 
@@ -42,20 +44,10 @@ Notes:
 
 ## TODO
 
-* Reorg detection: currently counts 2x depth-1 reorg as one depth-2 reorg
-* GethConnection: reconnect, retry with backoff
-
 Less important:
 
-* add webserver / API
-  * get status of nodes
-  * add or remove nodes
 * cmd to simulate old blocks in the database (eg. which had an error before)
 * pool of mev-geth instances for simulating blocks
-
-Errors, trying to reproduce:
-
-* `err in Finalize` (can't find parent in reorg.InvolvedBlocks)
 
 ---
 

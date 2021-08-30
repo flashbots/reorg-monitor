@@ -242,11 +242,15 @@ func (mon *ReorgMonitor) AnalyzeTree(maxBlocks uint64, distanceToLastBlockHeight
 	// Build tree datastructure
 	tree := analysis.NewBlockTree()
 	for height := startBlockNumber; height <= endBlockNumber; height++ {
-		// fmt.Println("checkblock at height", height)
 		numBlocksAtHeight := len(mon.BlocksByHeight[height])
 		if numBlocksAtHeight == 0 {
 			err := fmt.Errorf("error in CheckForReorgs: no blocks at height %d", height)
 			return nil, err
+		}
+
+		// Start tree only when 1 block at this height. If more blocks then skip
+		if tree.FirstNode == nil && numBlocksAtHeight > 1 {
+			continue
 		}
 
 		for _, currentBlock := range mon.BlocksByHeight[height] {
@@ -257,6 +261,7 @@ func (mon *ReorgMonitor) AnalyzeTree(maxBlocks uint64, distanceToLastBlockHeight
 		}
 	}
 
+	// Get analysis of tree
 	analysis, err := analysis.NewTreeAnalysis(tree)
 	if err != nil {
 		return nil, errors.Wrap(err, "monitor.AnalyzeTree NewTreeAnalysis error")
