@@ -103,8 +103,13 @@ func handleReorg(reorg *analysis.Reorg) {
 	log.Println(reorg.String())
 	fmt.Println("- common parent:", reorg.CommonParent.Hash)
 	fmt.Println("- first block after:", reorg.FirstBlockAfterReorg.Hash)
-	for _, chain := range reorg.Chains {
-		fmt.Printf("- chain l=%d: ", len(chain))
+	for chainKey, chain := range reorg.Chains {
+		if chainKey == reorg.MainChainHash {
+			fmt.Printf("- mainchain l=%d: ", len(chain))
+		} else {
+			fmt.Printf("- sidechain l=%d: ", len(chain))
+		}
+
 		for _, block := range chain {
 			fmt.Printf("%s ", block.Hash)
 		}
@@ -115,7 +120,7 @@ func handleReorg(reorg *analysis.Reorg) {
 		entry := database.NewReorgEntry(reorg)
 		err := db.AddReorgEntry(entry)
 		if err != nil {
-			log.Println("error at db.AddReorgEntry:", err)
+			log.Printf("error at db.AddReorgEntry: %+v\n", err)
 		}
 
 		for _, block := range reorg.BlocksInvolved {

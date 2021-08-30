@@ -63,8 +63,12 @@ func (a *TreeAnalysis) Print() {
 		fmt.Println("- common parent:", reorg.CommonParent.Hash)
 		fmt.Println("- first block after:", reorg.FirstBlockAfterReorg.Hash)
 
-		for _, chain := range reorg.Chains {
-			fmt.Printf("- chain l=%d: ", len(chain))
+		for chainKey, chain := range reorg.Chains {
+			if chainKey == reorg.MainChainHash {
+				fmt.Printf("- mainchain l=%d: ", len(chain))
+			} else {
+				fmt.Printf("- sidechain l=%d: ", len(chain))
+			}
 			for _, block := range chain {
 				fmt.Printf("%s ", block.Hash)
 			}

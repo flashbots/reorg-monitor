@@ -43,5 +43,5 @@ func NewBlock(block *types.Block, origin BlockOrigin, nodeUri string) *Block {
 
 func (block *Block) String() string {
 	t := time.Unix(int64(block.Block.Time()), 0).UTC()
-	return fmt.Sprintf("Block %d %s / %s / tx: %3d, uncles: %d", block.Number, block.Hash, t, len(block.Block.Transactions()), len(block.Block.Uncles()))
+	return fmt.Sprintf("Block %d %s / %s / tx: %4d, uncles: %d", block.Number, block.Hash, t, len(block.Block.Transactions()), len(block.Block.Uncles()))
 }

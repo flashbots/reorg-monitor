@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/metachris/eth-reorg-monitor/analysis"
+	"github.com/pkg/errors"
 )
 
 type GethConnection struct {
@@ -19,7 +20,7 @@ type GethConnection struct {
 
 	IsConnected         bool
 	IsSubscribed        bool
-	LastRetryTimeoutSec int64 // Wait time before retry. Starts at 5 seconds and doubles after each unsuccessful retry (max: 3 min).
+	NextRetryTimeoutSec int64 // Wait time before retry. Starts at 5 seconds and doubles after each unsuccessful retry (max: 3 min).
 
 	NumResubscribes int64
 	NumReconnects   int64
@@ -30,7 +31,7 @@ func NewGethConnection(nodeUri string, newBlockChan chan<- *analysis.Block) (*Ge
 	conn := GethConnection{
 		NodeUri:             nodeUri,
 		NewBlockChan:        newBlockChan,
-		LastRetryTimeoutSec: 5,
+		NextRetryTimeoutSec: 5,
 	}
 
 	err := conn.Connect()
@@ -46,7 +47,7 @@ func (conn *GethConnection) Connect() (err error) {
 
 	syncProgress, err := conn.Client.SyncProgress(context.Background())
 	if err != nil {
-		return fmt.Errorf("error at SyncProgress: %v", err)
+		return errors.Wrap(err, "error at SyncProgress")
 	}
 
 	if syncProgress != nil {
@@ -62,18 +63,18 @@ func (conn *GethConnection) Subscribe() error {
 	headers := make(chan *types.Header)
 	sub, err := conn.Client.SubscribeNewHead(context.Background(), headers)
 	if err != nil {
-		fmt.Printf("[conn %s] SubscribeNewHead error: %v\n", conn.NodeUri, err)
+		fmt.Printf("[conn %s] SubscribeNewHead error: %+v\n", conn.NodeUri, err)
 		conn.IsSubscribed = false
 		return err
 	}
 
 	conn.IsSubscribed = true
-	conn.LastRetryTimeoutSec = 5
+	conn.NextRetryTimeoutSec = 5
 
 	for {
 		select {
 		case err := <-sub.Err():
-			fmt.Printf("[conn %s] Subscription error: %v\n", conn.NodeUri, err)
+			fmt.Printf("[conn %s] Subscription error: %+v\n", conn.NodeUri, err)
 			conn.IsSubscribed = false
 			conn.ResubscribeAfterTimeout()
 			return err
@@ -83,7 +84,7 @@ func (conn *GethConnection) Subscribe() error {
 			// Fetch full block information from same client
 			ethBlock, err := conn.Client.BlockByHash(context.Background(), header.Hash())
 			if err != nil {
-				log.Printf("[conn %s] BlockByHash error: %v\n", conn.NodeUri, err)
+				log.Printf("[conn %s] BlockByHash error: %+v\n", conn.NodeUri, err)
 				continue
 			}
 
@@ -96,14 +97,14 @@ func (conn *GethConnection) Subscribe() error {
 
 func (conn *GethConnection) ResubscribeAfterTimeout() {
 	conn.NumResubscribes += 1
-	log.Printf("[conn %s] resubscribing in %d seconds...\n", conn.NodeUri, conn.LastRetryTimeoutSec)
-	time.Sleep(time.Duration(conn.LastRetryTimeoutSec) * time.Second)
+	log.Printf("[conn %s] resubscribing in %d seconds...\n", conn.NodeUri, conn.NextRetryTimeoutSec)
+	time.Sleep(time.Duration(conn.NextRetryTimeoutSec) * time.Second)
 	log.Printf("[conn %s] resubscribing...\n", conn.NodeUri)
 
 	// Now double time until next retry (max 3 min)
-	conn.LastRetryTimeoutSec *= 2
-	if conn.LastRetryTimeoutSec > 60*3 {
-		conn.LastRetryTimeoutSec = 60 * 3
+	conn.NextRetryTimeoutSec *= 2
+	if conn.NextRetryTimeoutSec > 60*3 {
+		conn.NextRetryTimeoutSec = 60 * 3
 	}
 
 	// step 1: get sync status

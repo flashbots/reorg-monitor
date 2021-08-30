@@ -146,3 +146,13 @@ var TestD3 = TestCase{
 		"0x1eba1d62712b43067cb8f913e682190eabf2dd020a4e954fdd4460a6099f09a7",
 	},
 }
+
+var TestX = TestCase{
+	BlockInfo: []string{
+		"13123066",
+		"13123067",
+		"13123068",
+		"13123069",
+		"13123070",
+	},
+}

@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS reorg_summary (
     StartBlockNumber   integer NOT NULL,
     EndBlockNumber     integer NOT NULL,
     Depth              integer NOT NULL,
+    NumChains          integer NOT NULL,
     NumBlocksInvolved  integer NOT NULL,
     NumBlocksReplaced  integer NOT NULL,
     MermaidSyntax text NOT NULL
@@ -46,8 +47,7 @@ CREATE TABLE IF NOT EXISTS reorg_block (
 
     IsPartOfReorg boolean NOT NULL,
     IsMainChain   boolean NOT NULL,
-    IsUncle       boolean NOT NULL,
-    IsChild       boolean NOT NULL,
+    IsFirst       boolean NOT NULL,
 
     MevGeth_CoinbaseDiffWei      NUMERIC(48, 0),
     MevGeth_GasFeesWei           NUMERIC(48, 0),
@@ -68,6 +68,7 @@ type ReorgEntry struct {
 	StartBlockNumber  uint64
 	EndBlockNumber    uint64
 	Depth             int
+	NumChains         int
 	NumBlocksInvolved int
 	NumBlocksReplaced int
 	MermaidSyntax     string
@@ -80,6 +81,7 @@ func NewReorgEntry(reorg *analysis.Reorg) ReorgEntry {
 		StartBlockNumber:  reorg.StartBlockHeight,
 		EndBlockNumber:    reorg.EndBlockHeight,
 		Depth:             reorg.Depth,
+		NumChains:         len(reorg.Chains),
 		NumBlocksInvolved: len(reorg.BlocksInvolved),
 		NumBlocksReplaced: reorg.NumReplacedBlocks,
 		MermaidSyntax:     reorg.MermaidSyntax(),
@@ -106,8 +108,7 @@ type BlockEntry struct {
 
 	IsPartOfReorg bool
 	IsMainChain   bool
-	IsUncle       bool
-	IsChild       bool
+	IsFirst       bool
 
 	MevGeth_CoinbaseDiffWei      string
 	MevGeth_GasFeesWei           string
@@ -120,8 +121,6 @@ type BlockEntry struct {
 func NewBlockEntry(block *analysis.Block, reorg *analysis.Reorg) BlockEntry {
 	_, isPartOfReorg := reorg.BlocksInvolved[block.Hash]
 	_, isMainChain := reorg.MainChainBlocks[block.Hash]
-	isUncle := !isMainChain && block.Number == reorg.StartBlockHeight
-	isChild := !isMainChain && !isUncle
 
 	blockEntry := BlockEntry{
 		Reorg_Key: reorg.Id(),
@@ -140,8 +139,7 @@ func NewBlockEntry(block *analysis.Block, reorg *analysis.Reorg) BlockEntry {
 
 		IsPartOfReorg: isPartOfReorg,
 		IsMainChain:   isMainChain,
-		IsUncle:       isUncle,
-		IsChild:       isChild,
+		IsFirst:       block.Number == reorg.StartBlockHeight,
 
 		MevGeth_CoinbaseDiffWei:      "-1",
 		MevGeth_GasFeesWei:           "-1",

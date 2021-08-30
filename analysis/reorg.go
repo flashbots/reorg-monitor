@@ -2,32 +2,28 @@ package analysis
 
 import (
 	"fmt"
+	"reflect"
 	"sort"
 
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// type Chain struct {
-// 	Blocks []*Block
-// }
-
 type Reorg struct {
 	IsFinished bool
 	SeenLive   bool
 
-	StartBlockHeight uint64 // first block number with siblings
-	EndBlockHeight   uint64
+	StartBlockHeight uint64 // first block with 2 chains (block number after common parent)
+	EndBlockHeight   uint64 // last block with 2 chains
 
 	Chains map[common.Hash][]*Block
 
-	Depth             int
-	Width             int
-	NumReplacedBlocks int
+	Depth int
 
-	BlocksInvolved   map[common.Hash]*Block
-	MainChainHash    common.Hash
-	MainChainBlocks  map[common.Hash]*Block
-	EthNodesInvolved map[string]bool
+	BlocksInvolved    map[common.Hash]*Block
+	MainChainHash     common.Hash
+	MainChainBlocks   map[common.Hash]*Block
+	NumReplacedBlocks int
+	EthNodesInvolved  map[string]bool
 
 	CommonParent         *Block
 	FirstBlockAfterReorg *Block
@@ -39,7 +35,8 @@ func NewReorg(parentNode *TreeNode) (*Reorg, error) {
 	}
 
 	reorg := Reorg{
-		CommonParent: parentNode.Block,
+		CommonParent:     parentNode.Block,
+		StartBlockHeight: parentNode.Block.Number + 1,
 
 		Chains:           make(map[common.Hash][]*Block),
 		BlocksInvolved:   make(map[common.Hash]*Block),
@@ -74,7 +71,15 @@ func NewReorg(parentNode *TreeNode) (*Reorg, error) {
 
 	// Depth is number of blocks in second chain
 	reorg.Depth = chainLengths[1]
-	reorg.Width = len(reorg.Chains)
+
+	// Truncate the longest chain to the second, which is when the reorg actually stopped
+	for key, chain := range reorg.Chains {
+		if len(chain) > reorg.Depth {
+			reorg.FirstBlockAfterReorg = chain[reorg.Depth] // first block that will be truncated
+			reorg.Chains[key] = chain[:reorg.Depth]
+			reorg.MainChainHash = key
+		}
+	}
 
 	// If two chains with same height, then the reorg isn't yet finalized
 	if chainLengths[0] == chainLengths[1] {
@@ -82,21 +87,6 @@ func NewReorg(parentNode *TreeNode) (*Reorg, error) {
 	} else {
 		reorg.IsFinished = true
 	}
-
-	// Truncate the longest chain to the second, which is when the reorg actually stopped
-	for key, chain := range reorg.Chains {
-		if len(chain) > chainLengths[1] {
-			reorg.FirstBlockAfterReorg = chain[chainLengths[1]] // first block that will be truncated
-			reorg.Chains[key] = chain[:chainLengths[1]]
-			reorg.MainChainHash = key
-		}
-	}
-
-	// Find final blockheight
-	mainChain := reorg.Chains[reorg.MainChainHash]
-	lastBlockInMainChain := mainChain[len(mainChain)-1]
-	reorg.StartBlockHeight = mainChain[0].Number
-	reorg.EndBlockHeight = lastBlockInMainChain.Number
 
 	// Build final list of involved blocks, and get end blockheight
 	for chainHash, chain := range reorg.Chains {
@@ -110,9 +100,12 @@ func NewReorg(parentNode *TreeNode) (*Reorg, error) {
 
 			if chainHash == reorg.MainChainHash {
 				reorg.MainChainBlocks[block.Hash] = block
+				reorg.EndBlockHeight = block.Number
 			}
 		}
 	}
+
+	reorg.NumReplacedBlocks = len(reorg.BlocksInvolved) - reorg.Depth
 
 	return &reorg, nil
 }
@@ -126,9 +119,8 @@ func (r *Reorg) Id() string {
 }
 
 func (r *Reorg) String() string {
-	// nodeUris := reflect.ValueOf(r.EthNodesInvolved).MapKeys()
-	return fmt.Sprintf("Reorg %s: chains: %d", r.Id(), len(r.Chains))
-	// return fmt.Sprintf("Reorg %s: live=%-6v blocks %d - %d, depth: %d, lenMainChain: %d, numBlocks: %d, replacedBlocks: %d, nodesInvolved: %v", r.Id(), r.SeenLive, r.StartBlockHeight, r.EndBlockHeight, r.Depth, len(r.MainChain), len(r.BlocksInvolved), r.NumReplacedBlocks, nodeUris)
+	nodeUris := reflect.ValueOf(r.EthNodesInvolved).MapKeys()
+	return fmt.Sprintf("Reorg %s: live=%-5v chains=%d, depth=%d, replaced=%d, nodes: %v", r.Id(), r.SeenLive, len(r.Chains), r.Depth, r.NumReplacedBlocks, nodeUris)
 }
 
 func (r *Reorg) MermaidSyntax() string {

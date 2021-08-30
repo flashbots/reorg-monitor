@@ -25,6 +25,7 @@ type ConnectionInfo struct {
 	NumBlocks       uint64
 	NumReconnects   int64
 	NumResubscribes int64
+	NextTimeout     int64
 }
 
 type StatusResponse struct {
@@ -59,6 +60,7 @@ func (ws *MonitorWebserver) HandleStatusRequest(w http.ResponseWriter, r *http.R
 			NumBlocks:       c.NumBlocks,
 			NumReconnects:   c.NumReconnects,
 			NumResubscribes: c.NumResubscribes,
+			NextTimeout:     c.NextRetryTimeoutSec,
 		}
 		res.Connections = append(res.Connections, connInfo)
 	}

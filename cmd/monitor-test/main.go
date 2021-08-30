@@ -26,9 +26,10 @@ func main() {
 	reorgutils.Perror(testutils.ConnectClient(testutils.EthNodeUri))
 
 	// CheckReorg(testutils.Test_13033424_13033425_d2_b5)
-	// CheckReorg(testutils.TestD1and2)
+	CheckReorg(testutils.TestD1and2)
 	// CheckReorg(testutils.Test3xD1)
-	CheckReorg(testutils.TestD3)
+	// CheckReorg(testutils.TestX)
+	// CheckReorg(testutils.Test_12996750_12996750_d1_b3_twouncles)
 
 	// Test(testutils.Test_12996760_12996760_d1_b2)
 	// Test(testutils.Test_12996750_12996750_d1_b3)
@@ -48,7 +49,7 @@ func CheckReorg(testCase testutils.TestCase) {
 	}
 
 	fmt.Println("")
-	analysis, err := testutils.Monitor.AnalyzeTree(100, 0)
+	analysis, err := testutils.Monitor.AnalyzeTree(0, 0)
 	if err != nil {
 		fmt.Println(err)
 		return

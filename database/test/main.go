@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 
@@ -44,7 +45,7 @@ func main() {
 
 	// test := testutils.Test_13018369_13018370_d2_b4
 	// test := testutils.Test_12996750_12996750_d1_b3_twouncles
-	test := testutils.Test_Tmp
+	test := testutils.Test3xD1
 	testutils.ResetMon("")
 
 	// Add the blocks
@@ -53,18 +54,27 @@ func main() {
 		testutils.Monitor.AddBlock(block)
 	}
 
-	// reorgs := testutils.ReorgCheckAndPrint()
-	// testutils.Pcheck("NumReorgs", len(reorgs), 1)
+	analysis, err := testutils.Monitor.AnalyzeTree(100, 0)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
-	// reorg := reorgs[0]
-	// fmt.Println(reorg)
+	// analysis.Tree.Print()
+	// fmt.Println("")
+	analysis.Print()
+	fmt.Println("")
 
-	// entry := database.NewReorgEntry(reorg)
-	// db.AddReorgEntry(entry)
+	for _, reorg := range analysis.Reorgs {
+		fmt.Println(reorg)
 
-	// // blocks
-	// for _, block := range reorg.BlocksInvolved {
-	// 	blockEntry := database.NewBlockEntry(block, reorg)
-	// 	db.AddBlockEntry(blockEntry)
-	// }
+		entry := database.NewReorgEntry(reorg)
+		db.AddReorgEntry(entry)
+
+		// blocks
+		for _, block := range reorg.BlocksInvolved {
+			blockEntry := database.NewBlockEntry(block, reorg)
+			db.AddBlockEntry(blockEntry)
+		}
+	}
 }
