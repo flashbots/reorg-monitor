@@ -254,6 +254,8 @@ github.com/mattn/go-tty v0.0.0-20180907095812-13ff1204f104/go.mod h1:XPvLUNfbS4f
 github.com/matttproud/golang_protobuf_extensions v1.0.1/go.mod h1:D8He9yQNgCq6Z5Ld7szi9bcBfOoFv/3dc6xSMkL2PC0=
 github.com/metachris/flashbots-rpc v0.1.1 h1:+MfxqW/dDVB1hVfHJtlmp67NXL0araw6h7BkG3/xMTQ=
 github.com/metachris/flashbots-rpc v0.1.1/go.mod h1:HYls2JCvQBFya3bnna9Vk9Y2uEUPBEqfsaoShG7w+6Q=
+github.com/metachris/flashbots-rpc v0.1.2 h1:08+jWRk/BcBjYFRNB90RQpW1Wt9nCEQ2w1E5Xzy1SAw=
+github.com/metachris/flashbots-rpc v0.1.2/go.mod h1:HYls2JCvQBFya3bnna9Vk9Y2uEUPBEqfsaoShG7w+6Q=
 github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd/go.mod h1:6dJC0mAP4ikYIbvyc7fijjWJddQyLn8Ig3JB5CqoB9Q=
 github.com/modern-go/reflect2 v1.0.1/go.mod h1:bx2lNnkwVCuqBIxFjflWJWanXIb3RllmbCylyMrvgv0=
 github.com/mschoch/smat v0.0.0-20160514031455-90eadee771ae/go.mod h1:qAyveg+e4CE+eKJXWVjKXM4ck2QobLqTDytGJbLLhJg=

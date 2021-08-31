@@ -146,8 +146,8 @@ func NewBlockEntry(block *analysis.Block, reorg *analysis.Reorg) BlockEntry {
 		MevGeth_GasFeesWei:           "0",
 		MevGeth_EthSentToCoinbaseWei: "0",
 
-		MevGeth_CoinbaseDiffEth:   "0",
-		MevGeth_EthSentToCoinbase: "0",
+		MevGeth_CoinbaseDiffEth:   "0.000000",
+		MevGeth_EthSentToCoinbase: "0.000000",
 	}
 
 	return blockEntry

@@ -48,6 +48,7 @@ func CheckReorg(testCase testutils.TestCase) {
 		testutils.Monitor.AddBlock(block)
 	}
 
+	// Analyze
 	fmt.Println("")
 	analysis, err := testutils.Monitor.AnalyzeTree(0, 0)
 	if err != nil {
@@ -55,11 +56,10 @@ func CheckReorg(testCase testutils.TestCase) {
 		return
 	}
 
+	// Print tree and result
 	analysis.Tree.Print()
 	fmt.Println("")
 	analysis.Print()
-
-	// testutils.ReorgCheckAndPrint()
 }
 
 func TestAndVerify(testCase testutils.TestCase) {

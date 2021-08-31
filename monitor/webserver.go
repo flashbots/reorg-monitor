@@ -4,11 +4,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 )
 
 type MonitorWebserver struct {
-	Monitor *ReorgMonitor
-	Addr    string
+	Monitor     *ReorgMonitor
+	Addr        string
+	TimeStarted time.Time
+}
+
+// API response
+type StatusResponse struct {
+	Monitor     MonitorInfo
+	Connections []ConnectionInfo
 }
 
 type MonitorInfo struct {
@@ -16,6 +24,7 @@ type MonitorInfo struct {
 	NumBlocks           int
 	EarliestBlockNumber uint64
 	LatestBlockNumber   uint64
+	TimeStarted         string
 }
 
 type ConnectionInfo struct {
@@ -28,15 +37,11 @@ type ConnectionInfo struct {
 	NextTimeout     int64
 }
 
-type StatusResponse struct {
-	Monitor     MonitorInfo
-	Connections []ConnectionInfo
-}
-
 func NewMonitorWebserver(monitor *ReorgMonitor, port int) *MonitorWebserver {
 	return &MonitorWebserver{
-		Monitor: monitor,
-		Addr:    fmt.Sprintf(":%d", port),
+		Monitor:     monitor,
+		Addr:        fmt.Sprintf(":%d", port),
+		TimeStarted: time.Now().UTC(),
 	}
 }
 
@@ -48,6 +53,7 @@ func (ws *MonitorWebserver) HandleStatusRequest(w http.ResponseWriter, r *http.R
 			NumBlocks:           len(ws.Monitor.BlockByHash),
 			EarliestBlockNumber: ws.Monitor.EarliestBlockNumber,
 			LatestBlockNumber:   ws.Monitor.LatestBlockNumber,
+			TimeStarted:         ws.TimeStarted.String(),
 		},
 		Connections: make([]ConnectionInfo, 0),
 	}

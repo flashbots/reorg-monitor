@@ -27,7 +27,7 @@ var ColorGreen = "\033[1;32m%s\033[0m"
 func main() {
 	log.SetOutput(os.Stdout)
 
-	ethUriPtr := flag.String("eth", os.Getenv("ETH_NODES"), "Geth node URIs (comma separated)")
+	ethUriPtr := flag.String("eth", os.Getenv("ETH_NODES"), "One or more geth node URIs for subscription (comma separated)")
 	debugPtr := flag.Bool("debug", false, "print debug information")
 	saveToDbPtr := flag.Bool("db", false, "save reorgs to database")
 

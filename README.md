@@ -42,11 +42,19 @@ Notes:
 
 ---
 
+## Codebase Overview & Architecture
+
+* `monitor` package: tools for block collection (subscription to multiple nodes, building a history of as many blocks as possible)
+  * `monitor.ReorgMonitor` collects the blocks
+* `analysis` package: building a tree data structure of known blocks, finding reorgs (blocks with >1 child), and collecting information about them
+* The main entrypoint is `cmd/monitor/main.go`
+
+---
+
 ## TODO
 
 Less important:
 
-* cmd to simulate old blocks in the database (eg. which had an error before)
 * pool of mev-geth instances for simulating blocks
 * move simulation into monitor
 

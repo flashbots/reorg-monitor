@@ -53,14 +53,6 @@ func BlocksForStrings(blockStrings []string) (ret []*types.Block) {
 	return ret
 }
 
-func AddBlockAndPrintNewline(blocks ...*types.Block) {
-	for _, ethBlock := range blocks {
-		block := analysis.NewBlock(ethBlock, analysis.OriginSubscription, EthNodeUri)
-		Monitor.AddBlock(block)
-		// fmt.Println("")
-	}
-}
-
 func ReorgCheckAndPrint() {
 	fmt.Println("\n---\n ")
 	analysis, err := Monitor.AnalyzeTree(100, 0)
@@ -72,18 +64,6 @@ func ReorgCheckAndPrint() {
 	analysis.Tree.Print()
 	fmt.Println("")
 	analysis.Print()
-
-	// // fmt.Println("\n---\n ")
-
-	// fmt.Println("Summary for", Monitor.String())
-	// fmt.Println("")
-	// for _, reorg := range reorgs {
-	// 	fmt.Println(reorg)
-	// 	// fmt.Println("- mainchain:", strings.Join(reorg.GetMainChainHashes(), ", "))
-	// 	// fmt.Println("- discarded:", strings.Join(reorg.GetReplacedBlockHashes(), ", "))
-	// }
-	// fmt.Println("")
-	// return reorgs
 }
 
 func GetBlockByHashStr(hashStr string) *types.Block {
