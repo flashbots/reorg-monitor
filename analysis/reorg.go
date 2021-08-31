@@ -94,7 +94,7 @@ func NewReorg(parentNode *TreeNode) (*Reorg, error) {
 			reorg.BlocksInvolved[block.Hash] = block
 			reorg.EthNodesInvolved[block.NodeUri] = true
 
-			if block.Origin == OriginUncle {
+			if block.Origin != OriginSubscription && block.Origin != OriginGetParent {
 				reorg.SeenLive = false
 			}
 

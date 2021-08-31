@@ -47,7 +47,6 @@ Notes:
 Less important:
 
 * cmd to simulate old blocks in the database (eg. which had an error before)
-* cmd to go over previous reorgs in the database and recalculate correct depth
 * pool of mev-geth instances for simulating blocks
 * move simulation into monitor
 

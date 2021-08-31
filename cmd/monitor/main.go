@@ -24,16 +24,6 @@ var callBundlePrivKey, _ = crypto.GenerateKey()
 
 var ColorGreen = "\033[1;32m%s\033[0m"
 
-func getDbConfig() database.PostgresConfig {
-	return database.PostgresConfig{
-		User:       os.Getenv("DB_USER"),
-		Password:   os.Getenv("DB_PASS"),
-		Host:       os.Getenv("DB_HOST"),
-		Name:       os.Getenv("DB_NAME"),
-		DisableTLS: len(os.Getenv("DB_DISABLE_TLS")) > 0,
-	}
-}
-
 func main() {
 	log.SetOutput(os.Stdout)
 
@@ -65,7 +55,7 @@ func main() {
 
 	if *saveToDbPtr {
 		saveToDb = *saveToDbPtr
-		dbCfg := getDbConfig()
+		dbCfg := database.GetDbConfig()
 		db = database.NewDatabaseService(dbCfg)
 		fmt.Println("Connected to database at", dbCfg.Host)
 	}
@@ -101,7 +91,7 @@ func handleReorg(reorg *analysis.Reorg) {
 	Reorgs[reorg.Id()] = reorg
 
 	log.Println(reorg.String())
-	fmt.Println("- common parent:", reorg.CommonParent.Hash)
+	fmt.Println("- common parent:    ", reorg.CommonParent.Hash)
 	fmt.Println("- first block after:", reorg.FirstBlockAfterReorg.Hash)
 	for chainKey, chain := range reorg.Chains {
 		if chainKey == reorg.MainChainHash {
@@ -127,14 +117,7 @@ func handleReorg(reorg *analysis.Reorg) {
 			blockEntry := database.NewBlockEntry(block, reorg)
 
 			// If block has no transactions, then it has 0 miner value (no need to simulate)
-			if len(block.Block.Transactions()) == 0 {
-				blockEntry.MevGeth_CoinbaseDiffWei = "0"
-				blockEntry.MevGeth_GasFeesWei = "0"
-				blockEntry.MevGeth_EthSentToCoinbaseWei = "0"
-				blockEntry.MevGeth_CoinbaseDiffEth = "0.000000"
-				blockEntry.MevGeth_EthSentToCoinbase = "0.000000"
-
-			} else if simulateBlocksWithMevGeth { // simulate the block now
+			if simulateBlocksWithMevGeth && len(block.Block.Transactions()) > 0 {
 				res, err := rpc.FlashbotsSimulateBlock(callBundlePrivKey, block.Block, 0)
 				if err != nil {
 					log.Println("error: sim failed of block", block.Hash, "-", err)

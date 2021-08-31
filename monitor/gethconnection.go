@@ -96,6 +96,8 @@ func (conn *GethConnection) Subscribe() error {
 }
 
 func (conn *GethConnection) ResubscribeAfterTimeout() {
+	var err error
+
 	conn.NumResubscribes += 1
 	log.Printf("[conn %s] resubscribing in %d seconds...\n", conn.NodeUri, conn.NextRetryTimeoutSec)
 	time.Sleep(time.Duration(conn.NextRetryTimeoutSec) * time.Second)
@@ -108,6 +110,18 @@ func (conn *GethConnection) ResubscribeAfterTimeout() {
 	}
 
 	// step 1: get sync status
+	if conn.Client == nil {
+		conn.NumReconnects += 1
+		conn.Client, err = ethclient.Dial(conn.NodeUri)
+		if err != nil {
+			log.Printf("[conn %s] err at ResubscribeAfterTimeout syncProgressCheck->reconnect: %v\n", conn.NodeUri, err)
+			conn.IsConnected = false
+			conn.ResubscribeAfterTimeout()
+			return
+		}
+		conn.IsConnected = true
+	}
+
 	syncProgress, err := conn.Client.SyncProgress(context.Background())
 	if err != nil {
 		log.Printf("[conn %s] err at ResubscribeAfterTimeout syncProgressCheck: %v\n", conn.NodeUri, err)

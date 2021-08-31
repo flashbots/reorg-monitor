@@ -1,6 +1,7 @@
 package database
 
 import (
+	"database/sql"
 	"math/big"
 
 	_ "github.com/lib/pq"
@@ -60,7 +61,7 @@ CREATE TABLE IF NOT EXISTS reorg_block (
 
 type ReorgEntry struct {
 	Id         int
-	Created_At int
+	Created_At sql.NullTime
 
 	Key      string
 	SeenLive bool
@@ -90,7 +91,7 @@ func NewReorgEntry(reorg *analysis.Reorg) ReorgEntry {
 
 type BlockEntry struct {
 	Id         int
-	Created_At int
+	Created_At sql.NullTime
 
 	Reorg_Key string
 	Origin    string
@@ -141,12 +142,12 @@ func NewBlockEntry(block *analysis.Block, reorg *analysis.Reorg) BlockEntry {
 		IsMainChain:   isMainChain,
 		IsFirst:       block.Number == reorg.StartBlockHeight,
 
-		MevGeth_CoinbaseDiffWei:      "-1",
-		MevGeth_GasFeesWei:           "-1",
-		MevGeth_EthSentToCoinbaseWei: "-1",
+		MevGeth_CoinbaseDiffWei:      "0",
+		MevGeth_GasFeesWei:           "0",
+		MevGeth_EthSentToCoinbaseWei: "0",
 
-		MevGeth_CoinbaseDiffEth:   "-1",
-		MevGeth_EthSentToCoinbase: "-1",
+		MevGeth_CoinbaseDiffEth:   "0",
+		MevGeth_EthSentToCoinbase: "0",
 	}
 
 	return blockEntry

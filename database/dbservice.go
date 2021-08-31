@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/jmoiron/sqlx"
+	"github.com/metachris/eth-reorg-monitor/analysis"
 )
 
 type PostgresConfig struct {
@@ -98,5 +99,42 @@ func (s *DatabaseService) AddBlockEntry(entry BlockEntry) error {
 	// Insert
 	_, err = s.DB.Exec("INSERT INTO reorg_block (Reorg_Key, Origin, NodeUri, BlockNumber, BlockHash, ParentHash, BlockTimestamp, CoinbaseAddress, Difficulty, NumUncles, NumTx, IsPartOfReorg, IsMainChain, IsFirst, MevGeth_CoinbaseDiffEth, MevGeth_CoinbaseDiffWei, MevGeth_GasFeesWei, MevGeth_EthSentToCoinbaseWei, MevGeth_EthSentToCoinbase) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)",
 		entry.Reorg_Key, entry.Origin, entry.NodeUri, entry.BlockNumber, entry.BlockHash, entry.ParentHash, entry.BlockTimestamp, entry.CoinbaseAddress, entry.Difficulty, entry.NumUncles, entry.NumTx, entry.IsPartOfReorg, entry.IsMainChain, entry.IsFirst, entry.MevGeth_CoinbaseDiffEth, entry.MevGeth_CoinbaseDiffWei, entry.MevGeth_GasFeesWei, entry.MevGeth_EthSentToCoinbaseWei, entry.MevGeth_EthSentToCoinbase)
+	return err
+}
+
+func (db *DatabaseService) AddReorgWithBlocks(reorg *analysis.Reorg) error {
+	// First add the reorg summary
+	err := db.AddReorgEntry(NewReorgEntry(reorg))
+	if err != nil {
+		return err
+	}
+
+	// Then add all the blocks
+	for _, block := range reorg.BlocksInvolved {
+		err := db.AddBlockEntry(NewBlockEntry(block, reorg))
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *DatabaseService) DeleteReorgWithBlocks(entry ReorgEntry) error {
+	_, err := s.DB.Exec("DELETE FROM reorg_block WHERE Reorg_Key=$1", entry.Key)
+	if err != nil {
+		return err
+	}
+	_, err = s.DB.Exec("DELETE FROM reorg_summary WHERE id=$1", entry.Id)
+	return err
+}
+
+func (s *DatabaseService) DeleteReorgEntry(entry ReorgEntry) error {
+	_, err := s.DB.Exec("DELETE FROM reorg_summary WHERE id=$1", entry.Id)
+	return err
+}
+
+func (s *DatabaseService) DeleteBlockEntry(entry BlockEntry) error {
+	_, err := s.DB.Exec("DELETE FROM reorg_block WHERE id=$1", entry.Id)
 	return err
 }
