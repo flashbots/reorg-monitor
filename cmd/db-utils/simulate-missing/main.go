@@ -55,7 +55,7 @@ func main() {
 		fmt.Println("Checking block", blockEntry.BlockNumber, blockEntry.BlockHash, blockEntry.NumTx)
 		ethBlock, err := client.BlockByHash(context.Background(), common.HexToHash(blockEntry.BlockHash))
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("-", err)
 			continue
 		}
 
@@ -67,7 +67,10 @@ func main() {
 			blockEntry.MevGeth_CoinbaseDiffEth = "0"
 		} else {
 			res, err := rpc.FlashbotsSimulateBlock(callBundlePrivKey, ethBlock, 0)
-			reorgutils.Perror(err)
+			if err != nil {
+				fmt.Println("-", err)
+				continue
+			}
 			blockEntry.UpdateWitCallBundleResponse(res)
 		}
 

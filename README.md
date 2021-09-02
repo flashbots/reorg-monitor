@@ -1,44 +1,38 @@
 # Ethereum Reorg Monitor
 
-Detect Ethereum reorgs:
+Watch and document Ethereum reorgs, including miner values of blocks.
 
-* Monitor multiple geth nodes
-* Simulate blocks at a mev-geth instance for to get miner value
-* Save reorg summaries and block info in a Postgres database
+* Monitor multiple geth nodes (a WebSocket or IPC connection is nevessary for subscribing to new blocks)
+* Capture miner value (gas fees and smart contract payments) by simulating blocks with [mev-geth](https://github.com/flashbots/mev-geth/)
+* Collect data in a Postgres database (summary and individual block info)
+* Webserver that shows status information and recent reorgs
 
-This project is currently work in progress and there may be bugs. Please open issues if you find any, or want to contribute :)
+This project is currently work in progress and there may be bugs, although it works pretty stable now. 
+Please open issues if you have ideas, questions or want to contribute :)
 
 ---
 
-## Getting started
+# Getting started
 
 * Clone this repository
-* See `.env.example` for example environment variables
+* For database testing, you can use `docker-compose up` to start a local Postgres database and adminer
+* See [`.env.example`](https://github.com/metachris/eth-reorg-monitor/blob/master/.env.example) for environment variables you can use (eg create `.env.local` and use them with `source .env.local`).
 * Start the monitor:
 
 
 ```bash
-$ go run cmd/monitor/main.go -h
-  -db
-        save reorgs to database
-  -debug
-        print debug information
-  -eth string
-        Geth node URIs (comma separated)
-  -sim
-        simulate blocks in mev-geth
-  -mevgeth string
-        mev-geth node URI for use with -sim
-  -webserver int
-        port for the webserver (0 to disable) (default 8094)
+# Normal run, print only
+$ go run cmd/monitor/main.go
+
+# Simulate blocks in a reorg 
+$ go run cmd/monitor/main.go -sim
+
+# Save to database
+$ go run cmd/monitor/main.go -sim -db
+
+# Get status from webserver
+$ curl localhost:9094
 ```
-
-The monitor needs a subscription to one or multiple geth/mev-geth nodes, either a local IPC connection or a `ws://` URI.
-You can set the geth node with `-eth <geth_node_urls>` or use an `ETH_NODES` environment variable (comma separated).
-
-Notes: 
-
-* You can find more infos about the children of uncles via AlchemyApi: https://composer.alchemyapi.io/
 
 ---
 
@@ -60,28 +54,21 @@ Less important:
 
 ---
 
-## Helpers
+## Notes & References
 
-```bash
-# Show AddBlock from logs
-grep -v "AddBlock" output.txt 
-
-# Get reorgs with depth >1
-grep "Reorg 1" output.txt | grep -v "depth=1"
-
-# Get reorgs with >1 block replaced
-grep "Reorg 1" output.txt | grep -v "replaced=1"
-
-# Get reorgs with more than 2 chains
-grep "Reorg 1" output.txt | grep -v "chains=2"
-```
-
-Mermaid:
-
-* https://mermaid-js.github.io/mermaid/#/stateDiagram
-* https://mermaid-js.github.io/mermaid-live-editor
-
+* https://etherscan.io/chart/uncles
+* https://etherscan.io/blocks_forked
+* [go-ethereum `WriteBlock` function](https://github.com/ethereum/go-ethereum/blob/525116dbff916825463931361f75e75e955c12e2/core/blockchain.go#L860), which calls the `reorg` method if a block is seen whos parent is not the current block
+* [GHOST whitepaper](https://eprint.iacr.org/2013/881.pdf)
+* [Ethereum Whitepaper: Modified GHOST Implementation](https://ethereum.org/en/whitepaper/#modified-ghost-implementation)
+* [Ethereum Yellow Paper](https://ethereum.github.io/yellowpaper/paper.pdf)
+* For Ethereum 2.0: [Combining Ghost and Casper](https://arxiv.org/abs/2003.03052)
 
 See also:
 
-* https://etherscan.io/blocks_forked
+* [An Empirical Analysis of Chain Reorganizations and Double-Spend Attacks on Proof-of-Work Cryptocurrencies](https://static1.squarespace.com/static/59aae5e9a803bb10bedeb03e/t/5f08d13a1cd5592cb330a0d0/1594413374526/LovejoyJamesP-meng-eecs-2020.pdf) (pdf)
+
+Tools:
+
+* https://composer.alchemyapi.io - to find out more about non-mainchain blocks ([`get_blockByHash`](https://composer.alchemyapi.io/?composer_state=%7B%22chain%22%3A0%2C%22network%22%3A0%2C%22methodName%22%3A%22eth_getBlockByHash%22%2C%22paramValues%22%3A%5B%22 YOUR_BLOCK_HASH_HERE %22%2Ctrue%5D%7D))
+* https://mermaid-js.github.io/mermaid-live-editor
