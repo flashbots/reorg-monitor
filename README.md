@@ -12,7 +12,7 @@ Please open issues if you have ideas, questions or want to contribute :)
 
 ---
 
-# Getting started
+## Getting started
 
 * Clone this repository
 * For database testing, you can use `docker-compose up` to start a local Postgres database and adminer
@@ -22,7 +22,7 @@ Please open issues if you have ideas, questions or want to contribute :)
 
 ```bash
 # Normal run, print only
-$ go run cmd/monitor/main.go
+$ go run cmd/monitor/main.go -eth ws://geth_node:8546
 
 # Simulate blocks in a reorg 
 $ go run cmd/monitor/main.go -sim
@@ -34,14 +34,25 @@ $ go run cmd/monitor/main.go -sim -db
 $ curl localhost:9094
 ```
 
+You can also install the reorg monitor with `go install`:
+
+```bash
+$ go install github.com/metachris/eth-reorg-monitor/cmd/reorg-monitor@latest
+$ reorg-monitor -h
+```
+
 ---
 
 ## Codebase Overview & Architecture
 
-* `monitor` package: tools for block collection (subscription to multiple nodes, building a history of as many blocks as possible)
-  * `monitor.ReorgMonitor` collects the blocks
-* `analysis` package: building a tree data structure of known blocks, finding reorgs (blocks with >1 child), and collecting information about them
-* The main entrypoint is `cmd/monitor/main.go`
+See also: [Story of an Ethereum Reorg](https://docs.google.com/presentation/d/1ZHJp2HFOFeZxQAyPETRvcXW0oSOkZHAUhm7G-MoYyoQ/edit?usp=sharing)
+
+Code layout:
+
+* [`cmd/reorg-monitor`](https://github.com/metachris/eth-reorg-monitor/blob/master/cmd/reorg-monitor/main.go) is the main command-line entrypoint
+* [`cmd/reorg-monitor-test`](https://github.com/metachris/eth-reorg-monitor/blob/master/cmd/reorg-monitor-test/main.go) is used for local testing and development
+* [`monitor` module](https://github.com/metachris/eth-reorg-monitor/tree/master/monitor) - block collection: subscription to geth nodes, building a history of as many blocks as possible
+* [`analysis` module](https://github.com/metachris/eth-reorg-monitor/tree/master/analysis) - detect reorgs by building a tree data structure of all known blocks (blocks with >1 child start a reorg)
 
 ---
 
@@ -56,12 +67,13 @@ Less important:
 
 ## Notes & References
 
-* https://etherscan.io/chart/uncles
-* https://etherscan.io/blocks_forked
+* [etherscan.io/chart/uncles](https://etherscan.io/chart/uncles)
+* [etherscan.io/blocks_forked](https://etherscan.io/blocks_forked)
+* [Story of an Ethereum Reorg](https://docs.google.com/presentation/d/1ZHJp2HFOFeZxQAyPETRvcXW0oSOkZHAUhm7G-MoYyoQ/edit?usp=sharing)
 * [go-ethereum `WriteBlock` function](https://github.com/ethereum/go-ethereum/blob/525116dbff916825463931361f75e75e955c12e2/core/blockchain.go#L860), which calls the `reorg` method if a block is seen whos parent is not the current block
-* [GHOST whitepaper](https://eprint.iacr.org/2013/881.pdf)
 * [Ethereum Whitepaper: Modified GHOST Implementation](https://ethereum.org/en/whitepaper/#modified-ghost-implementation)
 * [Ethereum Yellow Paper](https://ethereum.github.io/yellowpaper/paper.pdf)
+* [Ghost whitepaper](https://eprint.iacr.org/2013/881.pdf)
 * For Ethereum 2.0: [Combining Ghost and Casper](https://arxiv.org/abs/2003.03052)
 
 See also:
@@ -70,5 +82,6 @@ See also:
 
 Tools:
 
-* https://composer.alchemyapi.io - to find out more about non-mainchain blocks ([`get_blockByHash`](https://composer.alchemyapi.io/?composer_state=%7B%22chain%22%3A0%2C%22network%22%3A0%2C%22methodName%22%3A%22eth_getBlockByHash%22%2C%22paramValues%22%3A%5B%22 YOUR_BLOCK_HASH_HERE %22%2Ctrue%5D%7D))
+* https://composer.alchemyapi.io - to find out more about non-mainchain blocks ([`eth_getBlockByHash`](https://composer.alchemyapi.io/?composer_state=%7B%22chain%22%3A0%2C%22network%22%3A0%2C%22methodName%22%3A%22eth_getBlockByHash%22%2C%22paramValues%22%3A%5B%22YOUR_BLOCK_HASH_HERE%22%2Ctrue%5D%7D))
 * https://mermaid-js.github.io/mermaid-live-editor
+
