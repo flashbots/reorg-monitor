@@ -1,3 +1,4 @@
+// Summary of a specific reorg
 package analysis
 
 import (
@@ -12,8 +13,8 @@ type Reorg struct {
 	IsFinished bool
 	SeenLive   bool
 
-	StartBlockHeight uint64 // first block with 2 chains (block number after common parent)
-	EndBlockHeight   uint64 // last block with 2 chains
+	StartBlockHeight uint64 // first block in a reorg (block number after common parent)
+	EndBlockHeight   uint64 // last block in a reorg
 
 	Chains map[common.Hash][]*Block
 

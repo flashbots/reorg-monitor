@@ -1,4 +1,5 @@
-// Tree structure of the blocks
+// Tree of blocks, used to traverse up (from children to parents) and down (from parents to children).
+// Reorgs start on each node with more than one child.
 package analysis
 
 import (
@@ -7,37 +8,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// Block is an geth Block and information about where it came from
-type TreeNode struct {
-	Block    *Block
-	Parent   *TreeNode
-	Children []*TreeNode
-
-	IsFirst     bool
-	IsMainChain bool
-}
-
-func NewTreeNode(block *Block, parent *TreeNode) *TreeNode {
-	return &TreeNode{
-		Block:    block,
-		Parent:   parent,
-		Children: []*TreeNode{},
-		IsFirst:  parent == nil,
-	}
-}
-
-func (tn *TreeNode) String() string {
-	return fmt.Sprintf("TreeNode %d %s main=%5v \t first=%5v, %d children", tn.Block.Number, tn.Block.Hash, tn.IsMainChain, tn.IsFirst, len(tn.Children))
-	// return fmt.Sprintf("TreeNode %d %s first=%v, %d children, %d siblings, %d uncles", tn.Block.Number, tn.Block.Hash, tn.IsFirst, len(tn.Children), len(tn.Siblings), len(tn.Uncles))
-}
-
-func (tn *TreeNode) AddChild(node *TreeNode) {
-	tn.Children = append(tn.Children, node)
-}
-
 type BlockTree struct {
 	FirstNode           *TreeNode
-	LatestNodes         []*TreeNode // can be more than 1 at latest height
+	LatestNodes         []*TreeNode // Nodes at latest blockheight (can be more than 1)
 	NodeByHash          map[common.Hash]*TreeNode
 	MainChainNodeByHash map[common.Hash]*TreeNode
 }
@@ -60,11 +33,10 @@ func (t *BlockTree) AddBlock(block *Block) error {
 		return nil
 	}
 
-	// All other blocks are inserted after parent
+	// All other blocks are inserted as child of it's parent parent
 	parent, parentFound := t.NodeByHash[block.ParentHash]
 	if !parentFound {
 		err := fmt.Errorf("error in BlockTree.AddBlock(): parent not found. block: %d %s, parent: %s", block.Number, block.Hash, block.ParentHash)
-		// fmt.Println(err)
 		return err
 	}
 
@@ -72,7 +44,7 @@ func (t *BlockTree) AddBlock(block *Block) error {
 	t.NodeByHash[block.Hash] = node
 	parent.AddChild(node)
 
-	// Check if this node is latest, then remember
+	// Remember nodes at latest block height
 	if len(t.LatestNodes) == 0 {
 		t.LatestNodes = []*TreeNode{node}
 	} else {
@@ -83,14 +55,14 @@ func (t *BlockTree) AddBlock(block *Block) error {
 		}
 	}
 
-	// Mark main-chain nodes as such. Step 1: reset
+	// Mark main-chain nodes as such. Step 1: reset all nodes to non-main-chain
 	t.MainChainNodeByHash = make(map[common.Hash]*TreeNode)
 	for _, n := range t.NodeByHash {
 		n.IsMainChain = false
 	}
 
+	// Step 2: Traverse backwards and mark main chain. If there's more than 1 nodes at latest height, then we don't yet know which chain will be the main-chain
 	if len(t.LatestNodes) == 1 {
-		// Traverse backwards and mark main chain
 		var TraverseMainChainFromLatestToEarliest func(node *TreeNode)
 		TraverseMainChainFromLatestToEarliest = func(node *TreeNode) {
 			if node == nil {
@@ -107,7 +79,6 @@ func (t *BlockTree) AddBlock(block *Block) error {
 }
 
 func PrintNodeAndChildren(node *TreeNode, depth int) {
-	// indent := strings.Repeat("-", depth)
 	indent := "-"
 	fmt.Printf("%s %s\n", indent, node.String())
 	for _, childNode := range node.Children {

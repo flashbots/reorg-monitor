@@ -34,7 +34,8 @@ func main() {
 	}
 
 	testutils.EthNodeUri = *ethUriPtr
-	reorgutils.Perror(testutils.ConnectClient(*ethUriPtr))
+	_, err := testutils.ConnectClient(*ethUriPtr)
+	reorgutils.Perror(err)
 
 	// Test(testutils.Test_12996760_12996760_d1_b2)
 	// Test(testutils.Test_12996750_12996750_d1_b3)
@@ -46,7 +47,7 @@ func main() {
 	// test := testutils.Test_13018369_13018370_d2_b4
 	// test := testutils.Test_12996750_12996750_d1_b3_twouncles
 	test := testutils.Test3xD1
-	testutils.ResetMon("")
+	testutils.ResetMon()
 
 	// Add the blocks
 	for _, ethBlock := range testutils.BlocksForStrings(test.BlockInfo) {

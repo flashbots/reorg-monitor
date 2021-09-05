@@ -20,19 +20,20 @@ var Client *ethclient.Client
 var EthNodeUri string
 var Monitor *monitor.ReorgMonitor
 
-func ConnectClient(uri string) error {
+func ConnectClient(uri string) (client *ethclient.Client, err error) {
+	EthNodeUri = uri
+
 	// Connect to geth node
-	var err error
 	fmt.Printf("Connecting to %s...", uri)
 	Client, err = ethclient.Dial(uri)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	fmt.Printf(" ok\n")
-	return nil
+	return Client, nil
 }
 
-func ResetMon(nick string) {
+func ResetMon() {
 	reorgChan := make(chan *analysis.Reorg)
 	Monitor = monitor.NewReorgMonitor([]string{EthNodeUri}, reorgChan, true)
 	err := Monitor.ConnectClients()
@@ -69,6 +70,9 @@ func ReorgCheckAndPrint() {
 func GetBlockByHashStr(hashStr string) *types.Block {
 	hash := common.HexToHash(hashStr)
 	block, err := Client.BlockByHash(context.Background(), hash)
+	if err != nil {
+		log.Fatalf("GetBlockByHashStr couldn't find block %s: %v\n", hash, err)
+	}
 	reorgutils.Perror(err)
 	return block
 }

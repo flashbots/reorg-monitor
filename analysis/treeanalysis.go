@@ -1,3 +1,4 @@
+// TreeAnalysis takes in a BlockTree and collects information about reorgs
 package analysis
 
 import (

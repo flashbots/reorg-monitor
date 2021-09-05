@@ -1,4 +1,4 @@
-// Incoming Ethereum Block from a client, with some information where it came from.
+// Ethereum Block with some information about where it came from.
 package analysis
 
 import (
