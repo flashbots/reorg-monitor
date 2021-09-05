@@ -53,7 +53,7 @@ func NewTreeAnalysis(t *BlockTree) (*TreeAnalysis, error) {
 }
 
 func (a *TreeAnalysis) Print() {
-	fmt.Printf("TreeAnalysis %d - %d \t nodes: %d, mainchain: %d, reorgs: %d\n", a.StartBlockHeight, a.EndBlockHeight, a.NumBlocks, a.NumBlocksMainChain, len(a.Reorgs))
+	fmt.Printf("TreeAnalysis %d - %d, nodes: %d, mainchain: %d, reorgs: %d\n", a.StartBlockHeight, a.EndBlockHeight, a.NumBlocks, a.NumBlocksMainChain, len(a.Reorgs))
 	if a.IsSplitOngoing {
 		fmt.Println("- split ongoing")
 	}
@@ -61,8 +61,7 @@ func (a *TreeAnalysis) Print() {
 	for _, reorg := range a.Reorgs {
 		fmt.Println("")
 		fmt.Println(reorg.String())
-		fmt.Println("- common parent:", reorg.CommonParent.Hash)
-		fmt.Println("- first block after:", reorg.FirstBlockAfterReorg.Hash)
+		fmt.Printf("- common parent: %d %s, first block after: %d %s\n", reorg.CommonParent.Number, reorg.CommonParent.Hash, reorg.FirstBlockAfterReorg.Number, reorg.FirstBlockAfterReorg.Hash)
 
 		for chainKey, chain := range reorg.Chains {
 			if chainKey == reorg.MainChainHash {
