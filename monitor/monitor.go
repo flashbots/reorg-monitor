@@ -54,12 +54,11 @@ func (mon *ReorgMonitor) String() string {
 func (mon *ReorgMonitor) ConnectClients() (connectedClients int) {
 	for _, nodeUri := range mon.gethNodeUris {
 		gethConn, err := NewGethConnection(nodeUri, mon.NewBlockChan)
-		if err != nil {
+		if err != nil { // in case of an error, just print it but still continue to add it
 			fmt.Println(err)
-			continue
+		} else {
+			connectedClients += 1
 		}
-
-		connectedClients += 1
 		mon.connections[nodeUri] = gethConn
 	}
 

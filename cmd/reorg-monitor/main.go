@@ -69,13 +69,15 @@ func main() {
 	if numConnectedClients == 0 {
 		log.Fatal("could not connect to any clients")
 	}
-	go mon.SubscribeAndListen()
 
 	if *webserverPortPtr > 0 {
 		fmt.Printf("Starting webserver on port %d\n", *webserverPortPtr)
 		ws := monitor.NewMonitorWebserver(mon, *webserverPortPtr)
 		go ws.ListenAndServe()
 	}
+
+	// In the background, subscribe to new blocks and listen for updates
+	go mon.SubscribeAndListen()
 
 	// Wait for reorgs
 	for reorg := range reorgChan {

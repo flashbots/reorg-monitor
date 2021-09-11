@@ -36,8 +36,10 @@ func ConnectClient(uri string) (client *ethclient.Client, err error) {
 func ResetMon() {
 	reorgChan := make(chan *analysis.Reorg)
 	Monitor = monitor.NewReorgMonitor([]string{EthNodeUri}, reorgChan, true)
-	err := Monitor.ConnectClients()
-	reorgutils.Perror(err)
+	numConnectedClients := Monitor.ConnectClients()
+	if numConnectedClients == 0 {
+		log.Fatal("could not connect to any clients")
+	}
 }
 
 func BlocksForStrings(blockStrings []string) (ret []*types.Block) {

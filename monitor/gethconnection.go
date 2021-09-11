@@ -60,6 +60,11 @@ func (conn *GethConnection) Connect() (err error) {
 }
 
 func (conn *GethConnection) Subscribe() error {
+	if !conn.IsConnected {
+		conn.ResubscribeAfterTimeout()
+		return nil
+	}
+
 	headers := make(chan *types.Header)
 	sub, err := conn.Client.SubscribeNewHead(context.Background(), headers)
 	if err != nil {
@@ -110,7 +115,7 @@ func (conn *GethConnection) ResubscribeAfterTimeout() {
 	}
 
 	// step 1: get sync status
-	if conn.Client == nil {
+	if conn.Client == nil || !conn.IsConnected {
 		conn.NumReconnects += 1
 		conn.Client, err = ethclient.Dial(conn.NodeUri)
 		if err != nil {
