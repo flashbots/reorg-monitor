@@ -51,17 +51,19 @@ func (mon *ReorgMonitor) String() string {
 	return fmt.Sprintf("ReorgMonitor: %d - %d, %d blocks", mon.EarliestBlockNumber, mon.LatestBlockNumber, len(mon.BlockByHash))
 }
 
-func (mon *ReorgMonitor) ConnectClients() error {
+func (mon *ReorgMonitor) ConnectClients() (connectedClients int) {
 	for _, nodeUri := range mon.gethNodeUris {
 		gethConn, err := NewGethConnection(nodeUri, mon.NewBlockChan)
 		if err != nil {
-			return err
+			fmt.Println(err)
+			continue
 		}
 
+		connectedClients += 1
 		mon.connections[nodeUri] = gethConn
 	}
 
-	return nil
+	return connectedClients
 }
 
 // SubscribeAndListen is the main monitor loop: subscribes to new blocks from all geth connections, and waits for new blocks to process.

@@ -44,8 +44,7 @@ func main() {
 	fmt.Println("Connected to database at", dbCfg.Host)
 
 	blockEntries := []database.BlockEntry{}
-	// db.DB.Select(&blockEntries, "SELECT * FROM reorg_block WHERE MevGeth_CoinbaseDiffWei=0 AND NumTx>0")
-	db.DB.Select(&blockEntries, "SELECT * FROM reorg_block WHERE MevGeth_CoinbaseDiffWei=-1")
+	db.DB.Select(&blockEntries, "SELECT * FROM reorg_block WHERE MevGeth_CoinbaseDiffWei=0 AND NumTx>0 ORDER BY id DESC")
 	if len(blockEntries) == 0 {
 		return
 	}

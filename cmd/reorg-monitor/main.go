@@ -65,8 +65,10 @@ func main() {
 
 	// Setup and start the monitor
 	mon := monitor.NewReorgMonitor(ethUris, reorgChan, true)
-	err := mon.ConnectClients()
-	reorgutils.Perror(err)
+	numConnectedClients := mon.ConnectClients()
+	if numConnectedClients == 0 {
+		log.Fatal("could not connect to any clients")
+	}
 	go mon.SubscribeAndListen()
 
 	if *webserverPortPtr > 0 {
