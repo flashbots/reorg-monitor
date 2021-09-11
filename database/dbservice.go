@@ -1,6 +1,7 @@
 package database
 
 import (
+	"fmt"
 	"net/url"
 	"strings"
 
@@ -71,53 +72,59 @@ func (s *DatabaseService) BlockEntry(hash common.Hash) (entry BlockEntry, err er
 	return entry, err
 }
 
-func (s *DatabaseService) AddReorgEntry(entry ReorgEntry) error {
+func (s *DatabaseService) AddReorgEntry(entry ReorgEntry) (id int, err error) {
 	var count int
-	err := s.DB.QueryRow("SELECT COUNT(*) FROM reorg_summary WHERE Key = $1", entry.Key).Scan(&count)
+	err = s.DB.QueryRow("SELECT COUNT(*) FROM reorg_summary WHERE Key = $1", entry.Key).Scan(&count)
 	if err != nil {
-		return err
+		return id, err
 	}
 	if count > 0 { // already exists
-		return nil
+		return id, fmt.Errorf("a reorg with key %s already exists", entry.Key)
 	}
 
 	// Insert
-	_, err = s.DB.Exec("INSERT INTO reorg_summary (Key, SeenLive, StartBlockNumber, EndBlockNumber, Depth, NumChains, NumBlocksInvolved, NumBlocksReplaced, MermaidSyntax) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", entry.Key, entry.SeenLive, entry.StartBlockNumber, entry.EndBlockNumber, entry.Depth, entry.NumChains, entry.NumBlocksInvolved, entry.NumBlocksReplaced, entry.MermaidSyntax)
-	return err
+	rows, err := s.DB.Query("INSERT INTO reorg_summary (Key, SeenLive, StartBlockNumber, EndBlockNumber, Depth, NumChains, NumBlocksInvolved, NumBlocksReplaced, MermaidSyntax) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id", entry.Key, entry.SeenLive, entry.StartBlockNumber, entry.EndBlockNumber, entry.Depth, entry.NumChains, entry.NumBlocksInvolved, entry.NumBlocksReplaced, entry.MermaidSyntax)
+	if rows.Next() {
+		rows.Scan(&id)
+	}
+	return id, err
 }
 
-func (s *DatabaseService) AddBlockEntry(entry BlockEntry) error {
+func (s *DatabaseService) AddBlockEntry(entry BlockEntry) (id int, err error) {
 	var count int
-	err := s.DB.QueryRow("SELECT COUNT(*) FROM reorg_block WHERE Reorg_Key = $1 AND BlockHash = $2", entry.Reorg_Key, strings.ToLower(entry.BlockHash)).Scan(&count)
+	err = s.DB.QueryRow("SELECT COUNT(*) FROM reorg_block WHERE Reorg_Key = $1 AND BlockHash = $2", entry.Reorg_Key, strings.ToLower(entry.BlockHash)).Scan(&count)
 	if err != nil {
-		return err
+		return id, err
 	}
 	if count > 0 { // already exists
-		return nil
+		return id, fmt.Errorf("a block with hash %s for reorg %s already exists", entry.BlockHash, entry.Reorg_Key)
 	}
 
 	// Insert
-	_, err = s.DB.Exec("INSERT INTO reorg_block (Reorg_Key, Origin, NodeUri, BlockNumber, BlockHash, ParentHash, BlockTimestamp, CoinbaseAddress, Difficulty, NumUncles, NumTx, IsPartOfReorg, IsMainChain, IsFirst, MevGeth_CoinbaseDiffEth, MevGeth_CoinbaseDiffWei, MevGeth_GasFeesWei, MevGeth_EthSentToCoinbaseWei, MevGeth_EthSentToCoinbase) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)",
+	rows, err := s.DB.Query("INSERT INTO reorg_block (Reorg_Key, Origin, NodeUri, BlockNumber, BlockHash, ParentHash, BlockTimestamp, CoinbaseAddress, Difficulty, NumUncles, NumTx, IsPartOfReorg, IsMainChain, IsFirst, MevGeth_CoinbaseDiffEth, MevGeth_CoinbaseDiffWei, MevGeth_GasFeesWei, MevGeth_EthSentToCoinbaseWei, MevGeth_EthSentToCoinbase) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING id",
 		entry.Reorg_Key, entry.Origin, entry.NodeUri, entry.BlockNumber, entry.BlockHash, entry.ParentHash, entry.BlockTimestamp, entry.CoinbaseAddress, entry.Difficulty, entry.NumUncles, entry.NumTx, entry.IsPartOfReorg, entry.IsMainChain, entry.IsFirst, entry.MevGeth_CoinbaseDiffEth, entry.MevGeth_CoinbaseDiffWei, entry.MevGeth_GasFeesWei, entry.MevGeth_EthSentToCoinbaseWei, entry.MevGeth_EthSentToCoinbase)
-	return err
+	if rows.Next() {
+		rows.Scan(&id)
+	}
+	return id, err
 }
 
-func (db *DatabaseService) AddReorgWithBlocks(reorg *analysis.Reorg) error {
+func (db *DatabaseService) AddReorgWithBlocks(reorg *analysis.Reorg) (reorgId int, err error) {
 	// First add the reorg summary
-	err := db.AddReorgEntry(NewReorgEntry(reorg))
+	reorgId, err = db.AddReorgEntry(NewReorgEntry(reorg))
 	if err != nil {
-		return err
+		return reorgId, err
 	}
 
 	// Then add all the blocks
 	for _, block := range reorg.BlocksInvolved {
-		err := db.AddBlockEntry(NewBlockEntry(block, reorg))
+		_, err := db.AddBlockEntry(NewBlockEntry(block, reorg))
 		if err != nil {
-			return err
+			return reorgId, err
 		}
 	}
 
-	return nil
+	return reorgId, nil
 }
 
 func (s *DatabaseService) DeleteReorgWithBlocks(entry ReorgEntry) error {

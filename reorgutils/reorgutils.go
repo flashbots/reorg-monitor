@@ -1,14 +1,18 @@
 package reorgutils
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"math"
 	"math/big"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 func Perror(err error) {
@@ -62,4 +66,37 @@ func EthUrisFromString(s string) []string {
 		return []string{}
 	}
 	return strings.Split(s, ",")
+}
+
+func GetBlocks(blockChan chan<- *types.Block, client *ethclient.Client, startBlock int64, endBlock int64, concurrency int) {
+	var blockWorkerWg sync.WaitGroup
+	blockHeightChan := make(chan int64, 100) // blockHeight to fetch with receipts
+
+	// Start eth client thread pool
+	for w := 1; w <= concurrency; w++ {
+		blockWorkerWg.Add(1)
+
+		// Worker gets a block height from blockHeightChan, downloads it, and puts it in the blockChan
+		go func() {
+			defer blockWorkerWg.Done()
+			for blockHeight := range blockHeightChan {
+				// fmt.Println(blockHeight)
+				block, err := client.BlockByNumber(context.Background(), big.NewInt(blockHeight))
+				if err != nil {
+					log.Println("Error getting block:", blockHeight, err)
+					continue
+				}
+				blockChan <- block
+			}
+		}()
+	}
+
+	// Push blocks into channel, for workers to pick up
+	for currentBlockNumber := startBlock; currentBlockNumber <= endBlock; currentBlockNumber++ {
+		blockHeightChan <- currentBlockNumber
+	}
+
+	// Close worker channel and wait for workers to finish
+	close(blockHeightChan)
+	blockWorkerWg.Wait()
 }

@@ -112,7 +112,7 @@ func handleReorg(reorg *analysis.Reorg) {
 
 	if saveToDb {
 		entry := database.NewReorgEntry(reorg)
-		err := db.AddReorgEntry(entry)
+		_, err := db.AddReorgEntry(entry)
 		if err != nil {
 			log.Printf("error at db.AddReorgEntry: %+v\n", err)
 		}
@@ -131,7 +131,7 @@ func handleReorg(reorg *analysis.Reorg) {
 				}
 			}
 
-			err := db.AddBlockEntry(blockEntry)
+			_, err := db.AddBlockEntry(blockEntry)
 			if err != nil {
 				log.Println("error at db.AddBlockEntry:", err)
 			}

@@ -24,11 +24,11 @@ var callBundlePrivKey, _ = crypto.GenerateKey()
 func main() {
 	log.SetOutput(os.Stdout)
 
-	ethUriPtr := flag.String("eth", "", "Geth node URI")
+	ethUriPtr := flag.String("mevgeth", "", "mev-geth node URI")
 	flag.Parse()
 
 	if *ethUriPtr == "" {
-		log.Fatal("Missing eth node uri")
+		log.Fatal("Missing mev-geth node uri")
 	}
 
 	var err error
