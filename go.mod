@@ -1,4 +1,4 @@
-module github.com/metachris/eth-reorg-monitor
+module github.com/flashbots/reorg-monitor
 
 go 1.16
 

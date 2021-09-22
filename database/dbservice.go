@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flashbots/reorg-monitor/analysis"
 	"github.com/jmoiron/sqlx"
-	"github.com/metachris/eth-reorg-monitor/analysis"
 )
 
 type PostgresConfig struct {

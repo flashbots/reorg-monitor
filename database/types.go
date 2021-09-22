@@ -4,9 +4,9 @@ import (
 	"database/sql"
 	"math/big"
 
+	"github.com/flashbots/reorg-monitor/analysis"
+	"github.com/flashbots/reorg-monitor/reorgutils"
 	_ "github.com/lib/pq"
-	"github.com/metachris/eth-reorg-monitor/analysis"
-	"github.com/metachris/eth-reorg-monitor/reorgutils"
 	flashbotsrpc "github.com/metachris/flashbots-rpc"
 )
 

@@ -7,10 +7,10 @@ import (
 	"log"
 	"os"
 
-	"github.com/metachris/eth-reorg-monitor/analysis"
-	"github.com/metachris/eth-reorg-monitor/monitor"
-	"github.com/metachris/eth-reorg-monitor/reorgutils"
-	"github.com/metachris/eth-reorg-monitor/testutils"
+	"github.com/flashbots/reorg-monitor/analysis"
+	"github.com/flashbots/reorg-monitor/monitor"
+	"github.com/flashbots/reorg-monitor/reorgutils"
+	"github.com/flashbots/reorg-monitor/testutils"
 )
 
 var mon *monitor.ReorgMonitor

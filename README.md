@@ -16,19 +16,19 @@ Please open issues if you have ideas, questions or want to contribute :)
 
 * Clone this repository
 * For database testing, you can use `docker-compose up` to start a local Postgres database and adminer
-* See [`.env.example`](https://github.com/metachris/eth-reorg-monitor/blob/master/.env.example) for environment variables you can use (eg create `.env.local` and use them with `source .env.local`).
+* See [`.env.example`](https://github.com/flashbots/reorg-monitor/blob/master/.env.example) for environment variables you can use (eg create `.env.local` and use them with `source .env.local`).
 * Start the monitor:
 
 
 ```bash
 # Normal run, print only
-$ go run cmd/monitor/main.go -eth ws://geth_node:8546
+$ go run cmd/reorg-monitor/main.go -eth ws://geth_node:8546
 
 # Simulate blocks in a reorg 
-$ go run cmd/monitor/main.go -sim
+$ go run cmd/reorg-monitor/main.go -sim
 
 # Save to database
-$ go run cmd/monitor/main.go -sim -db
+$ go run cmd/reorg-monitor/main.go -sim -db
 
 # Get status from webserver
 $ curl localhost:9094
@@ -37,7 +37,7 @@ $ curl localhost:9094
 You can also install the reorg monitor with `go install`:
 
 ```bash
-$ go install github.com/metachris/eth-reorg-monitor/cmd/reorg-monitor@latest
+$ go install github.com/flashbots/reorg-monitor/cmd/reorg-monitor@latest
 $ reorg-monitor -h
 ```
 
@@ -49,10 +49,10 @@ See also: [Story of an Ethereum Reorg](https://docs.google.com/presentation/d/1Z
 
 Code layout:
 
-* [`cmd/reorg-monitor`](https://github.com/metachris/eth-reorg-monitor/blob/master/cmd/reorg-monitor/main.go) is the main command-line entrypoint
-* [`cmd/reorg-monitor-test`](https://github.com/metachris/eth-reorg-monitor/blob/master/cmd/reorg-monitor-test/main.go) is used for local testing and development
-* [`monitor` module](https://github.com/metachris/eth-reorg-monitor/tree/master/monitor) - block collection: subscription to geth nodes, building a history of as many blocks as possible
-* [`analysis` module](https://github.com/metachris/eth-reorg-monitor/tree/master/analysis) - detect reorgs by building a tree data structure of all known blocks (blocks with >1 child start a reorg)
+* [`cmd/reorg-monitor`](https://github.com/flashbots/reorg-monitor/blob/master/cmd/reorg-monitor/main.go) is the main command-line entrypoint
+* [`cmd/reorg-monitor-test`](https://github.com/flashbots/reorg-monitor/blob/master/cmd/reorg-monitor-test/main.go) is used for local testing and development
+* [`monitor` module](https://github.com/flashbots/reorg-monitor/tree/master/monitor) - block collection: subscription to geth nodes, building a history of as many blocks as possible
+* [`analysis` module](https://github.com/flashbots/reorg-monitor/tree/master/analysis) - detect reorgs by building a tree data structure of all known blocks (blocks with >1 child start a reorg)
 
 ---
 

@@ -11,8 +11,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/metachris/eth-reorg-monitor/database"
-	"github.com/metachris/eth-reorg-monitor/reorgutils"
+	"github.com/flashbots/reorg-monitor/database"
+	"github.com/flashbots/reorg-monitor/reorgutils"
 	flashbotsrpc "github.com/metachris/flashbots-rpc"
 )
 

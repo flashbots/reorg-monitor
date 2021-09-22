@@ -11,9 +11,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/metachris/eth-reorg-monitor/analysis"
-	"github.com/metachris/eth-reorg-monitor/monitor"
-	"github.com/metachris/eth-reorg-monitor/reorgutils"
+	"github.com/flashbots/reorg-monitor/analysis"
+	"github.com/flashbots/reorg-monitor/monitor"
+	"github.com/flashbots/reorg-monitor/reorgutils"
 )
 
 var Client *ethclient.Client

@@ -7,10 +7,10 @@ import (
 	"os"
 
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/metachris/eth-reorg-monitor/analysis"
-	"github.com/metachris/eth-reorg-monitor/database"
-	"github.com/metachris/eth-reorg-monitor/monitor"
-	"github.com/metachris/eth-reorg-monitor/reorgutils"
+	"github.com/flashbots/reorg-monitor/analysis"
+	"github.com/flashbots/reorg-monitor/database"
+	"github.com/flashbots/reorg-monitor/monitor"
+	"github.com/flashbots/reorg-monitor/reorgutils"
 	flashbotsrpc "github.com/metachris/flashbots-rpc"
 )
 
