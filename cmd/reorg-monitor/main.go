@@ -4,7 +4,9 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
+	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flashbots/reorg-monitor/analysis"
@@ -60,6 +62,9 @@ func main() {
 		fmt.Println("Connected to database at", dbCfg.Host)
 	}
 
+	// Start healthcheck pings
+	go healthPing()
+
 	// Channel to receive reorgs from monitor
 	reorgChan := make(chan *analysis.Reorg)
 
@@ -82,6 +87,17 @@ func main() {
 	// Wait for reorgs
 	for reorg := range reorgChan {
 		handleReorg(reorg)
+	}
+}
+
+func healthPing() {
+	url := os.Getenv("URL_HC_PING")
+	if url == "" {
+		return
+	}
+	for {
+		http.Get(url)
+		time.Sleep(1 * time.Minute)
 	}
 }
 
