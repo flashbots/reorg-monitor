@@ -46,7 +46,15 @@ func main() {
 
 	// test := testutils.Test_13018369_13018370_d2_b4
 	// test := testutils.Test_12996750_12996750_d1_b3_twouncles
-	test := testutils.Test3xD1
+	// test := testutils.Test3xD1
+	test := testutils.TestCase{
+		BlockInfo: []string{
+			"13400397",
+			"0xe11507e3ab485efa72d4221e5a2e58d35809425f0bb486d702dc38efe894c830",
+			"0x5824ce21441e5d30e8685a90cb70bb24d09ca6533fb3063f35bd5b9a05e480b8",
+			"13400402",
+		},
+	}
 	testutils.ResetMon()
 
 	// Add the blocks
