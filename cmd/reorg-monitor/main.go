@@ -26,18 +26,31 @@ var callBundlePrivKey, _ = crypto.GenerateKey()
 
 var ColorGreen = "\033[1;32m%s\033[0m"
 
+var (
+	version = "dev" // is set during build process
+
+	// default values
+	defaultEthNodes   = os.Getenv("ETH_NODES")
+	defaultDebug      = os.Getenv("DEBUG") == "1"
+	defaultSaveToDb   = os.Getenv("SAVE_TO_DB") == "1"
+	defaultListenAddr = os.Getenv("LISTEN_ADDR")
+	defaultSimBlocks  = os.Getenv("SIM_BLOCKS") == "1"
+	defaultSimURI     = os.Getenv("MEVGETH_NODE")
+
+	// cli flags
+	ethUriPtr     = flag.String("eth", defaultEthNodes, "One or more geth node URIs for subscription (comma separated)")
+	debugPtr      = flag.Bool("debug", defaultDebug, "print debug information")
+	saveToDbPtr   = flag.Bool("db", defaultSaveToDb, "save reorgs to database")
+	httpAddrPtr   = flag.String("http", defaultListenAddr, "http service address")
+	mevGethSimPtr = flag.Bool("sim", defaultSimBlocks, "simulate blocks in mev-geth")
+	mevGethUriPtr = flag.String("mevgeth", defaultSimURI, "mev-geth node URI")
+)
+
 func main() {
 	log.SetOutput(os.Stdout)
-
-	ethUriPtr := flag.String("eth", os.Getenv("ETH_NODES"), "One or more geth node URIs for subscription (comma separated)")
-	debugPtr := flag.Bool("debug", false, "print debug information")
-	saveToDbPtr := flag.Bool("db", false, "save reorgs to database")
-
-	webserverPortPtr := flag.Int("webserver", 8094, "port for the webserver (0 to disable)")
-
-	mevGethSimPtr := flag.Bool("sim", false, "simulate blocks in mev-geth")
-	mevGethUriPtr := flag.String("mevgeth", os.Getenv("MEVGETH_NODE"), "mev-geth node URI")
 	flag.Parse()
+
+	log.Printf("reorg-monitor %s", version)
 
 	ethUris := reorgutils.EthUrisFromString(*ethUriPtr)
 	if len(ethUris) == 0 {
@@ -75,9 +88,9 @@ func main() {
 		log.Fatal("could not connect to any clients")
 	}
 
-	if *webserverPortPtr > 0 {
-		fmt.Printf("Starting webserver on port %d\n", *webserverPortPtr)
-		ws := monitor.NewMonitorWebserver(mon, *webserverPortPtr)
+	if *httpAddrPtr != "" {
+		fmt.Printf("Starting webserver on %s\n", *httpAddrPtr)
+		ws := monitor.NewMonitorWebserver(mon, *httpAddrPtr)
 		go ws.ListenAndServe()
 	}
 
