@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -30,20 +31,20 @@ var (
 	version = "dev" // is set during build process
 
 	// default values
-	defaultEthNodes   = os.Getenv("ETH_NODES")
-	defaultDebug      = os.Getenv("DEBUG") == "1"
-	defaultSaveToDb   = os.Getenv("SAVE_TO_DB") == "1"
-	defaultListenAddr = os.Getenv("LISTEN_ADDR")
-	defaultSimBlocks  = os.Getenv("SIM_BLOCKS") == "1"
-	defaultSimURI     = os.Getenv("MEVGETH_NODE")
+	defaultEthNodes    = os.Getenv("ETH_NODES")
+	defaultDebug       = os.Getenv("DEBUG") == "1"
+	defaultListenAddr  = os.Getenv("LISTEN_ADDR")
+	defaultSimBlocks   = os.Getenv("SIM_BLOCKS") == "1"
+	defaultSimURI      = os.Getenv("MEVGETH_NODE")
+	defaultPostgresDSN = os.Getenv("POSTGRES_DSN")
 
 	// cli flags
-	ethUriPtr     = flag.String("eth", defaultEthNodes, "One or more geth node URIs for subscription (comma separated)")
-	debugPtr      = flag.Bool("debug", defaultDebug, "print debug information")
-	saveToDbPtr   = flag.Bool("db", defaultSaveToDb, "save reorgs to database")
-	httpAddrPtr   = flag.String("http", defaultListenAddr, "http service address")
-	mevGethSimPtr = flag.Bool("sim", defaultSimBlocks, "simulate blocks in mev-geth")
-	mevGethUriPtr = flag.String("mevgeth", defaultSimURI, "mev-geth node URI")
+	ethUriPtr      = flag.String("eth", defaultEthNodes, "One or more geth node URIs for subscription (comma separated)")
+	debugPtr       = flag.Bool("debug", defaultDebug, "print RPC call debug information")
+	httpAddrPtr    = flag.String("http", defaultListenAddr, "http service address")
+	mevGethSimPtr  = flag.Bool("sim", defaultSimBlocks, "simulate blocks in mev-geth")
+	mevGethUriPtr  = flag.String("mevgeth", defaultSimURI, "mev-geth node URI")
+	postgresDSNPtr = flag.String("postgres", defaultPostgresDSN, "postgres DSN")
 )
 
 func main() {
@@ -68,11 +69,10 @@ func main() {
 		fmt.Printf("Using mev-geth node at %s for simulations\n", *mevGethUriPtr)
 	}
 
-	if *saveToDbPtr {
-		saveToDb = *saveToDbPtr
-		dbCfg := database.GetDbConfig()
-		db = database.NewDatabaseService(dbCfg)
-		fmt.Println("Connected to database at", dbCfg.Host)
+	if *postgresDSNPtr != "" {
+		saveToDb = true
+		db = database.NewDatabaseService(*postgresDSNPtr)
+		fmt.Println("Connected to database at", "uri", strings.Split(*postgresDSNPtr, "@")[1])
 	}
 
 	// Start healthcheck pings

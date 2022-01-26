@@ -66,9 +66,8 @@ func main() {
 
 	rpc = flashbotsrpc.NewFlashbotsRPC(*mevGethUriPtr)
 
-	dbCfg := database.GetDbConfig()
-	db = database.NewDatabaseService(dbCfg)
-	fmt.Println("Connected to database at", dbCfg.Host)
+	db = database.NewDatabaseService(os.Getenv("POSTGRES_DSN"))
+	fmt.Println("Connected to database")
 
 	blockChan := make(chan *types.Block, 100)
 
