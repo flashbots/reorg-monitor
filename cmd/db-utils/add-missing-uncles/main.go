@@ -171,7 +171,7 @@ func addUncle(uncleBlock *types.Block, mainchainBlock *types.Block) {
 	// Save
 	reorgEntry := database.NewReorgEntry(&reorg)
 
-	_, err = db.AddReorgEntry(reorgEntry)
+	err = db.AddReorgEntry(reorgEntry)
 	if err != nil {
 		fmt.Println("-", err)
 		return
@@ -183,13 +183,13 @@ func addUncle(uncleBlock *types.Block, mainchainBlock *types.Block) {
 		return
 	}
 
-	_, err = db.AddBlockEntry(uncleBlockEntry)
+	err = db.AddBlockEntry(uncleBlockEntry)
 	if err != nil {
 		fmt.Println("-", err)
 		return
 	}
 
-	_, err = db.AddBlockEntry(mainChainBlockEntry)
+	err = db.AddBlockEntry(mainChainBlockEntry)
 	if err != nil {
 		fmt.Println("-", err)
 		return
