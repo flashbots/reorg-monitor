@@ -13,7 +13,6 @@ import (
 	"github.com/flashbots/reorg-monitor/analysis"
 	"github.com/flashbots/reorg-monitor/database"
 	"github.com/flashbots/reorg-monitor/monitor"
-	"github.com/flashbots/reorg-monitor/reorgutils"
 	flashbotsrpc "github.com/metachris/flashbots-rpc"
 )
 
@@ -53,9 +52,21 @@ func main() {
 
 	log.Printf("reorg-monitor %s", version)
 
-	ethUris := reorgutils.EthUrisFromString(*ethUriPtr)
+	ethUris := []string{}
+	if *ethUriPtr != "" {
+		ethUris = strings.Split(*ethUriPtr, ",")
+	} else {
+		// Try parsing ETH_NODE_* env vars
+		for _, entry := range os.Environ() {
+			if strings.HasPrefix(entry, "ETH_NODE_") {
+				ethUris = append(ethUris, strings.Split(entry, "=")[1])
+			}
+		}
+	}
 	if len(ethUris) == 0 {
 		log.Fatal("Missing eth node uri")
+	} else {
+		log.Println("eth nodes:", ethUris)
 	}
 
 	if *mevGethSimPtr {

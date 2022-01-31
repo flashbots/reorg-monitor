@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/flashbots/reorg-monitor/analysis"
 	"github.com/flashbots/reorg-monitor/monitor"
@@ -21,7 +22,7 @@ func main() {
 	ethUriPtr := flag.String("eth", os.Getenv("ETH_NODES"), "Geth node URI")
 	flag.Parse()
 
-	ethUris := reorgutils.EthUrisFromString(*ethUriPtr)
+	ethUris := strings.Split(*ethUriPtr, ",")
 	if len(ethUris) == 0 {
 		log.Fatal("Missing eth node uri")
 	}
