@@ -39,9 +39,8 @@ func main() {
 
 	rpc = flashbotsrpc.NewFlashbotsRPC(*ethUriPtr)
 
-	dbCfg := database.GetDbConfig()
-	db = database.NewDatabaseService(dbCfg)
-	fmt.Println("Connected to database at", dbCfg.Host)
+	db = database.NewDatabaseService(os.Getenv("POSTGRES_DSN"))
+	fmt.Println("Connected to database")
 
 	blockEntries := []database.BlockEntry{}
 	db.DB.Select(&blockEntries, "SELECT * FROM reorg_block WHERE MevGeth_CoinbaseDiffWei=0 AND NumTx>0 ORDER BY id DESC")

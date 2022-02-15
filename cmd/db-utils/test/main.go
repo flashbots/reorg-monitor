@@ -15,14 +15,8 @@ import (
 var db *database.DatabaseService
 
 func main() {
-	dbConfig := database.PostgresConfig{
-		User:       "user1",
-		Password:   "password",
-		Host:       "localhost",
-		Name:       "reorg",
-		DisableTLS: true,
-	}
-	db = database.NewDatabaseService(dbConfig)
+	postgresDsn := "postgres://user1:password@localhost:5432/reorg?sslmode=disable"
+	db = database.NewDatabaseService(postgresDsn)
 
 	log.SetOutput(os.Stdout)
 

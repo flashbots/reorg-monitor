@@ -2,7 +2,6 @@ package monitor
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 )
@@ -37,10 +36,10 @@ type ConnectionInfo struct {
 	NextTimeout     int64
 }
 
-func NewMonitorWebserver(monitor *ReorgMonitor, port int) *MonitorWebserver {
+func NewMonitorWebserver(monitor *ReorgMonitor, listenAddr string) *MonitorWebserver {
 	return &MonitorWebserver{
 		Monitor:     monitor,
-		Addr:        fmt.Sprintf(":%d", port),
+		Addr:        listenAddr,
 		TimeStarted: time.Now().UTC(),
 	}
 }

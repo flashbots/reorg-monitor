@@ -2,7 +2,6 @@ package database
 
 import (
 	"fmt"
-	"net/url"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -10,43 +9,13 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-type PostgresConfig struct {
-	User       string
-	Password   string
-	Host       string
-	Name       string
-	DisableTLS bool
-}
-
-func NewDatabaseConnection(cfg PostgresConfig) *sqlx.DB {
-	sslMode := "require"
-	if cfg.DisableTLS {
-		sslMode = "disable"
-	}
-
-	q := make(url.Values)
-	q.Set("sslmode", sslMode)
-	q.Set("timezone", "utc")
-
-	u := url.URL{
-		Scheme:   "postgres",
-		User:     url.UserPassword(cfg.User, cfg.Password),
-		Host:     cfg.Host,
-		Path:     cfg.Name,
-		RawQuery: q.Encode(),
-	}
-
-	db := sqlx.MustConnect("postgres", u.String())
-	db.MustExec(Schema)
-	return db
-}
-
 type DatabaseService struct {
 	DB *sqlx.DB
 }
 
-func NewDatabaseService(cfg PostgresConfig) *DatabaseService {
-	db := NewDatabaseConnection(cfg)
+func NewDatabaseService(dsn string) *DatabaseService {
+	db := sqlx.MustConnect("postgres", dsn)
+	db.MustExec(Schema)
 	return &DatabaseService{
 		DB: db,
 	}

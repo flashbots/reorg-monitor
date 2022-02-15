@@ -6,13 +6,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flashbots/reorg-monitor/analysis"
 	"github.com/flashbots/reorg-monitor/database"
 	"github.com/flashbots/reorg-monitor/monitor"
-	"github.com/flashbots/reorg-monitor/reorgutils"
 	flashbotsrpc "github.com/metachris/flashbots-rpc"
 )
 
@@ -26,22 +26,47 @@ var callBundlePrivKey, _ = crypto.GenerateKey()
 
 var ColorGreen = "\033[1;32m%s\033[0m"
 
+var (
+	version = "dev" // is set during build process
+
+	// default values
+	defaultEthNodes    = os.Getenv("ETH_NODES")
+	defaultDebug       = os.Getenv("DEBUG") == "1"
+	defaultListenAddr  = os.Getenv("LISTEN_ADDR")
+	defaultSimBlocks   = os.Getenv("SIM_BLOCKS") == "1"
+	defaultSimURI      = os.Getenv("MEVGETH_NODE")
+	defaultPostgresDSN = os.Getenv("POSTGRES_DSN")
+
+	// cli flags
+	ethUriPtr      = flag.String("eth", defaultEthNodes, "One or more geth node URIs for subscription (comma separated)")
+	debugPtr       = flag.Bool("debug", defaultDebug, "print RPC call debug information")
+	httpAddrPtr    = flag.String("http", defaultListenAddr, "http service address")
+	mevGethSimPtr  = flag.Bool("sim", defaultSimBlocks, "simulate blocks in mev-geth")
+	mevGethUriPtr  = flag.String("mevgeth", defaultSimURI, "mev-geth node URI")
+	postgresDSNPtr = flag.String("postgres", defaultPostgresDSN, "postgres DSN")
+)
+
 func main() {
 	log.SetOutput(os.Stdout)
-
-	ethUriPtr := flag.String("eth", os.Getenv("ETH_NODES"), "One or more geth node URIs for subscription (comma separated)")
-	debugPtr := flag.Bool("debug", false, "print debug information")
-	saveToDbPtr := flag.Bool("db", false, "save reorgs to database")
-
-	webserverPortPtr := flag.Int("webserver", 8094, "port for the webserver (0 to disable)")
-
-	mevGethSimPtr := flag.Bool("sim", false, "simulate blocks in mev-geth")
-	mevGethUriPtr := flag.String("mevgeth", os.Getenv("MEVGETH_NODE"), "mev-geth node URI")
 	flag.Parse()
 
-	ethUris := reorgutils.EthUrisFromString(*ethUriPtr)
+	log.Printf("reorg-monitor %s", version)
+
+	ethUris := []string{}
+	if *ethUriPtr != "" {
+		ethUris = strings.Split(*ethUriPtr, ",")
+	} else {
+		// Try parsing ETH_NODE_* env vars
+		for _, entry := range os.Environ() {
+			if strings.HasPrefix(entry, "ETH_NODE_") {
+				ethUris = append(ethUris, strings.Split(entry, "=")[1])
+			}
+		}
+	}
 	if len(ethUris) == 0 {
 		log.Fatal("Missing eth node uri")
+	} else {
+		log.Println("eth nodes:", ethUris)
 	}
 
 	if *mevGethSimPtr {
@@ -55,11 +80,10 @@ func main() {
 		fmt.Printf("Using mev-geth node at %s for simulations\n", *mevGethUriPtr)
 	}
 
-	if *saveToDbPtr {
-		saveToDb = *saveToDbPtr
-		dbCfg := database.GetDbConfig()
-		db = database.NewDatabaseService(dbCfg)
-		fmt.Println("Connected to database at", dbCfg.Host)
+	if *postgresDSNPtr != "" {
+		saveToDb = true
+		db = database.NewDatabaseService(*postgresDSNPtr)
+		fmt.Println("Connected to database at", "uri", strings.Split(*postgresDSNPtr, "@")[1])
 	}
 
 	// Start healthcheck pings
@@ -75,9 +99,9 @@ func main() {
 		log.Fatal("could not connect to any clients")
 	}
 
-	if *webserverPortPtr > 0 {
-		fmt.Printf("Starting webserver on port %d\n", *webserverPortPtr)
-		ws := monitor.NewMonitorWebserver(mon, *webserverPortPtr)
+	if *httpAddrPtr != "" {
+		fmt.Printf("Starting webserver on %s\n", *httpAddrPtr)
+		ws := monitor.NewMonitorWebserver(mon, *httpAddrPtr)
 		go ws.ListenAndServe()
 	}
 
