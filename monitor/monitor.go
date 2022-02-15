@@ -27,13 +27,13 @@ type ReorgMonitor struct {
 	EarliestBlockNumber uint64
 	LatestBlockNumber   uint64
 
-	Reorgs map[string]*analysis.Reorg
+	KnownReorgs map[string]uint64 // key: reorgId, value: endBlockNumber
 }
 
-func NewReorgMonitor(gethNodeUris []string, reorgChan chan<- *analysis.Reorg, verbose bool) *ReorgMonitor {
+func NewReorgMonitor(gethNodeUris []string, reorgChan chan<- *analysis.Reorg, verbose bool, maxBlocks int) *ReorgMonitor {
 	return &ReorgMonitor{
 		verbose:          verbose,
-		maxBlocksInCache: 1000,
+		maxBlocksInCache: maxBlocks,
 
 		gethNodeUris: gethNodeUris,
 		connections:  make(map[string]*GethConnection),
@@ -43,12 +43,12 @@ func NewReorgMonitor(gethNodeUris []string, reorgChan chan<- *analysis.Reorg, ve
 
 		BlockByHash:    make(map[common.Hash]*analysis.Block),
 		BlocksByHeight: make(map[uint64]map[common.Hash]*analysis.Block),
-		Reorgs:         make(map[string]*analysis.Reorg),
+		KnownReorgs:    make(map[string]uint64),
 	}
 }
 
 func (mon *ReorgMonitor) String() string {
-	return fmt.Sprintf("ReorgMonitor: %d - %d, %d blocks", mon.EarliestBlockNumber, mon.LatestBlockNumber, len(mon.BlockByHash))
+	return fmt.Sprintf("ReorgMonitor: %d - %d, %d / %d blocks, %d reorgcache", mon.EarliestBlockNumber, mon.LatestBlockNumber, len(mon.BlockByHash), len(mon.BlocksByHeight), len(mon.KnownReorgs))
 }
 
 func (mon *ReorgMonitor) ConnectClients() (connectedClients int) {
@@ -101,8 +101,8 @@ func (mon *ReorgMonitor) SubscribeAndListen() {
 			}
 
 			// Send new finished reorgs to channel
-			if _, isKnownReorg := mon.Reorgs[reorg.Id()]; !isKnownReorg {
-				mon.Reorgs[reorg.Id()] = reorg
+			if _, isKnownReorg := mon.KnownReorgs[reorg.Id()]; !isKnownReorg {
+				mon.KnownReorgs[reorg.Id()] = reorg.EndBlockHeight
 				mon.NewReorgChan <- reorg
 			}
 		}
@@ -111,6 +111,8 @@ func (mon *ReorgMonitor) SubscribeAndListen() {
 
 // AddBlock adds a block to history if it hasn't been seen before, and download unknown referenced blocks (parent, uncles).
 func (mon *ReorgMonitor) AddBlock(block *analysis.Block) bool {
+	defer mon.TrimCache()
+
 	// If known, then only overwrite if known was by uncle
 	knownBlock, isKnown := mon.BlockByHash[block.Hash]
 	if isKnown && knownBlock.Origin != analysis.OriginUncle {
@@ -155,11 +157,17 @@ func (mon *ReorgMonitor) AddBlock(block *analysis.Block) bool {
 		}
 	}
 
-	mon.TrimCache()
 	return true
 }
 
 func (mon *ReorgMonitor) TrimCache() {
+	// Trim reorg history
+	for reorgId, reorgEndBlockheight := range mon.KnownReorgs {
+		if reorgEndBlockheight < mon.EarliestBlockNumber {
+			delete(mon.KnownReorgs, reorgId)
+		}
+	}
+
 	for currentHeight := mon.EarliestBlockNumber; currentHeight < mon.LatestBlockNumber; currentHeight++ {
 		blocks, heightExists := mon.BlocksByHeight[currentHeight]
 		if !heightExists {
@@ -175,10 +183,11 @@ func (mon *ReorgMonitor) TrimCache() {
 		}
 
 		// Trim
-		delete(mon.BlocksByHeight, currentHeight)
 		for hash := range blocks {
+			delete(mon.BlocksByHeight[currentHeight], hash)
 			delete(mon.BlockByHash, hash)
 		}
+		delete(mon.BlocksByHeight, currentHeight)
 	}
 }
 

@@ -6,18 +6,17 @@ jobs:
     steps:
     - name: Install Go
       uses: actions/setup-go@v2
+      with:
+        go-version: ^1.17
 
     - name: Checkout code
       uses: actions/checkout@v2
 
     - name: Install staticcheck
-      run: go install honnef.co/go/tools/cmd/staticcheck
+      run: go install honnef.co/go/tools/cmd/staticcheck@v0.2.2
 
     - name: Lint
-      run: |
-        export PATH=$PATH:$(go env GOPATH)/bin
-        make lint
-      shell: bash
+      run: make lint
 
     - name: Test
       run: make test

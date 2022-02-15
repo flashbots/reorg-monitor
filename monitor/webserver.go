@@ -3,6 +3,7 @@ package monitor
 import (
 	"encoding/json"
 	"net/http"
+	_ "net/http/pprof"
 	"time"
 )
 
