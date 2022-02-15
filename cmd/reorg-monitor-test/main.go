@@ -32,7 +32,7 @@ func main() {
 	reorgutils.Perror(err)
 
 	// Create a new monitor instance (and connect its geth clients to fetch further blocks if required)
-	mon = monitor.NewReorgMonitor(ethUris, make(chan *analysis.Reorg), true)
+	mon = monitor.NewReorgMonitor(ethUris, make(chan *analysis.Reorg), true, 100)
 	numConnectedClients := mon.ConnectClients()
 	if numConnectedClients == 0 {
 		log.Fatal("could not connect to any clients")

@@ -19,7 +19,6 @@ import (
 var saveToDb = false
 var simulateBlocksWithMevGeth = false
 
-var Reorgs map[string]*analysis.Reorg = make(map[string]*analysis.Reorg)
 var db *database.DatabaseService
 var rpc *flashbotsrpc.FlashbotsRPC
 var callBundlePrivKey, _ = crypto.GenerateKey()
@@ -30,6 +29,7 @@ var (
 	version = "dev" // is set during build process
 
 	// default values
+	defaultMaxBlocks   = 200
 	defaultEthNodes    = os.Getenv("ETH_NODES")
 	defaultDebug       = os.Getenv("DEBUG") == "1"
 	defaultListenAddr  = os.Getenv("LISTEN_ADDR")
@@ -44,6 +44,7 @@ var (
 	mevGethSimPtr  = flag.Bool("sim", defaultSimBlocks, "simulate blocks in mev-geth")
 	mevGethUriPtr  = flag.String("mevgeth", defaultSimURI, "mev-geth node URI")
 	postgresDSNPtr = flag.String("postgres", defaultPostgresDSN, "postgres DSN")
+	maxBlocksPtr   = flag.Int("max-blocks", defaultMaxBlocks, "maximum number of blocks to keep in memory")
 )
 
 func main() {
@@ -56,7 +57,7 @@ func main() {
 	if *ethUriPtr != "" {
 		ethUris = strings.Split(*ethUriPtr, ",")
 	} else {
-		// Try parsing ETH_NODE_* env vars
+		// Empty -eth flag - try parsing ETH_NODE_* environment variables
 		for _, entry := range os.Environ() {
 			if strings.HasPrefix(entry, "ETH_NODE_") {
 				ethUris = append(ethUris, strings.Split(entry, "=")[1])
@@ -93,7 +94,7 @@ func main() {
 	reorgChan := make(chan *analysis.Reorg)
 
 	// Setup and start the monitor
-	mon := monitor.NewReorgMonitor(ethUris, reorgChan, true)
+	mon := monitor.NewReorgMonitor(ethUris, reorgChan, true, *maxBlocksPtr)
 	numConnectedClients := mon.ConnectClients()
 	if numConnectedClients == 0 {
 		log.Fatal("could not connect to any clients")
@@ -126,14 +127,6 @@ func healthPing() {
 }
 
 func handleReorg(reorg *analysis.Reorg) {
-	_, found := Reorgs[reorg.Id()]
-	if found {
-		return
-	}
-
-	// new reorg: remember and print
-	Reorgs[reorg.Id()] = reorg
-
 	log.Println(reorg.String())
 	fmt.Println("- common parent:    ", reorg.CommonParent.Hash)
 	fmt.Println("- first block after:", reorg.FirstBlockAfterReorg.Hash)

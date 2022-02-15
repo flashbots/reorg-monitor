@@ -89,7 +89,7 @@ func (conn *GethConnection) Subscribe() error {
 			// Fetch full block information from same client
 			ethBlock, err := conn.Client.BlockByHash(context.Background(), header.Hash())
 			if err != nil {
-				log.Printf("[conn %s] BlockByHash error: %+v\n", conn.NodeUri, err)
+				log.Printf("[conn %s] BlockByHash error: %+v (header %d %s)\n", conn.NodeUri, err, header.Number.Uint64(), header.Hash())
 				continue
 			}
 
