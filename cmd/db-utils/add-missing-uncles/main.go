@@ -66,7 +66,8 @@ func main() {
 
 	rpc = flashbotsrpc.NewFlashbotsRPC(*mevGethUriPtr)
 
-	db = database.NewDatabaseService(os.Getenv("POSTGRES_DSN"))
+	db, err = database.NewDatabaseService(os.Getenv("POSTGRES_DSN"))
+	reorgutils.Perror(err)
 	fmt.Println("Connected to database")
 
 	blockChan := make(chan *types.Block, 100)
@@ -118,6 +119,7 @@ func addUncle(uncleBlock *types.Block, mainchainBlock *types.Block) {
 	mainChainBlockChild1, err := client.BlockByNumber(context.Background(), nextHeight)
 	reorgutils.Perror(err)
 
+	observed := time.Now().UTC().UnixNano()
 	reorg := analysis.Reorg{
 		IsFinished:           true,
 		SeenLive:             false,
@@ -130,11 +132,11 @@ func addUncle(uncleBlock *types.Block, mainchainBlock *types.Block) {
 		MainChainBlocks:      make(map[common.Hash]*analysis.Block),
 		NumReplacedBlocks:    1,
 		EthNodesInvolved:     make(map[string]bool),
-		FirstBlockAfterReorg: analysis.NewBlock(mainChainBlockChild1, analysis.OriginUncle, *ethUriPtr),
+		FirstBlockAfterReorg: analysis.NewBlock(mainChainBlockChild1, analysis.OriginUncle, *ethUriPtr, observed),
 	}
 
-	_uncleBlock := analysis.NewBlock(uncleBlock, analysis.OriginUncle, *ethUriPtr)
-	_mainChainBlock := analysis.NewBlock(mainchainBlock, analysis.OriginSubscription, *ethUriPtr)
+	_uncleBlock := analysis.NewBlock(uncleBlock, analysis.OriginUncle, *ethUriPtr, observed)
+	_mainChainBlock := analysis.NewBlock(mainchainBlock, analysis.OriginSubscription, *ethUriPtr, observed)
 
 	// Update reorg details
 	reorg.Chains[_mainChainBlock.Hash] = []*analysis.Block{_mainChainBlock}

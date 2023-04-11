@@ -4,6 +4,9 @@ GOPATH := $(if $(GOPATH),$(GOPATH),~/go)
 GIT_VER := $(shell git describe --tags --always --dirty="-dev")
 ECR_URI := 223847889945.dkr.ecr.us-east-2.amazonaws.com/reorg-monitor
 
+PACKAGES := $(shell go list -mod=vendor ./...)
+DOCKER_TAG ?= flashbots/reorg-monitor:latest
+
 all: clean build
 
 build:
@@ -16,7 +19,7 @@ test:
 	go test ./...
 
 lint:
-	gofmt -d ./
+	@go fmt -mod=vendor $(PACKAGES)
 	go vet ./...
 	staticcheck ./...
 
@@ -34,9 +37,9 @@ build-for-docker:
 	CGO_ENABLED=0 GOOS=linux go build -ldflags "-X main.version=${GIT_VER}" -v -o reorg-monitor cmd/reorg-monitor/main.go
 
 docker-image:
-	DOCKER_BUILDKIT=1 docker build . -t reorg-monitor
-	docker tag reorg-monitor:latest ${ECR_URI}:${GIT_VER}
-	docker tag reorg-monitor:latest ${ECR_URI}:latest
+	DOCKER_BUILDKIT=1 docker build . -t ${DOCKER_TAG}
+	docker tag ${DOCKER_TAG} ${ECR_URI}:${GIT_VER}
+	docker tag ${DOCKER_TAG} ${ECR_URI}:latest
 
 docker-push:
 	docker push ${ECR_URI}:${GIT_VER}

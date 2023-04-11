@@ -39,7 +39,8 @@ func main() {
 
 	rpc = flashbotsrpc.NewFlashbotsRPC(*ethUriPtr)
 
-	db = database.NewDatabaseService(os.Getenv("POSTGRES_DSN"))
+	db, err = database.NewDatabaseService(os.Getenv("POSTGRES_DSN"))
+	reorgutils.Perror(err)
 	fmt.Println("Connected to database")
 
 	blockEntries := []database.BlockEntry{}

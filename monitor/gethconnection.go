@@ -1,4 +1,4 @@
-// Wraps a geth connection and tries to reconnect on error
+// Package monitor wraps an Ethereum connection and tries to reconnect on error
 package monitor
 
 import (
@@ -84,6 +84,7 @@ func (conn *GethConnection) Subscribe() error {
 			conn.ResubscribeAfterTimeout()
 			return err
 		case header := <-headers:
+			observed := time.Now().UTC().UnixNano()
 			conn.NumBlocks += 1
 
 			// Fetch full block information from same client
@@ -94,7 +95,7 @@ func (conn *GethConnection) Subscribe() error {
 			}
 
 			// Add the block
-			newBlock := analysis.NewBlock(ethBlock, analysis.OriginSubscription, conn.NodeUri)
+			newBlock := analysis.NewBlock(ethBlock, analysis.OriginSubscription, conn.NodeUri, observed)
 			conn.NewBlockChan <- newBlock
 		}
 	}

@@ -9,16 +9,26 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
+const driverName = "postgres"
+
 type DatabaseService struct {
 	DB *sqlx.DB
 }
 
-func NewDatabaseService(dsn string) *DatabaseService {
-	db := sqlx.MustConnect("postgres", dsn)
-	db.MustExec(Schema)
+func NewDatabaseService(dsn string) (*DatabaseService, error) {
+	db, err := sqlx.Connect(driverName, dsn)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = db.Exec(Schema)
+	if err != nil {
+		return nil, err
+	}
+
 	return &DatabaseService{
 		DB: db,
-	}
+	}, nil
 }
 
 func (s *DatabaseService) Reset() {
@@ -72,16 +82,16 @@ func (s *DatabaseService) AddBlockEntry(entry BlockEntry) error {
 	return err
 }
 
-func (db *DatabaseService) AddReorgWithBlocks(reorg *analysis.Reorg) error {
+func (s *DatabaseService) AddReorgWithBlocks(reorg *analysis.Reorg) error {
 	// First add the reorg summary
-	err := db.AddReorgEntry(NewReorgEntry(reorg))
+	err := s.AddReorgEntry(NewReorgEntry(reorg))
 	if err != nil {
 		return err
 	}
 
 	// Then add all the blocks
 	for _, block := range reorg.BlocksInvolved {
-		err := db.AddBlockEntry(NewBlockEntry(block, reorg))
+		err := s.AddBlockEntry(NewBlockEntry(block, reorg))
 		if err != nil {
 			return err
 		}

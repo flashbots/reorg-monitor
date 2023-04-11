@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+      app.kubernetes.io/component: database
+      app.kubernetes.io/part-of: reorg-monitor
+  serviceName: postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres
+        app.kubernetes.io/component: database
+        app.kubernetes.io/part-of: reorg-monitor
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:14.7
+          envFrom:
+            - secretRef:
+                name: reorg-monitor-secrets
+          ports:
+            - name: postgresql
+              containerPort: 5432
+          volumeMounts:
+            - name: postgres-pvc
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: postgres-pvc
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-pvc
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi

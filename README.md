@@ -2,7 +2,7 @@
 
 Watch and document Ethereum reorgs, including miner values of blocks.
 
-* Monitor multiple geth nodes (a WebSocket or IPC connection is nevessary for subscribing to new blocks)
+* Monitor multiple Ethereum nodes (a WebSocket or IPC connection is necessary for subscribing to new blocks)
 * Capture miner value (gas fees and smart contract payments) by simulating blocks with [mev-geth](https://github.com/flashbots/mev-geth/)
 * Collect data in a Postgres database (summary and individual block info)
 * Webserver that shows status information and recent reorgs
@@ -22,13 +22,13 @@ Please open issues if you have ideas, questions or want to contribute :)
 
 ```bash
 # Normal run, print only
-$ go run cmd/reorg-monitor/main.go -eth ws://geth_node:8546
+$ go run cmd/reorg-monitor/main.go --ethereum-jsonrpc-uris ws://geth_node:8546
 
 # Simulate blocks in a reorg 
-$ go run cmd/reorg-monitor/main.go -sim
+$ go run cmd/reorg-monitor/main.go --simulate-blocks
 
 # Save to database
-$ go run cmd/reorg-monitor/main.go -sim -db
+$ go run cmd/reorg-monitor/main.go --simulate-blocks --postgres-dsn ${POSTGRES_DSN_HERE}
 
 # Get status from webserver
 $ curl localhost:9094
