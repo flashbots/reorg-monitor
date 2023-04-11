@@ -1,10 +1,10 @@
-.PHONY: all build test clean lint cover cover-html build-for-docker docker-image docker-push
+.PHONY: all build test clean lint cover cover-html build-for-docker docker-image docker-push vendor
 
 GOPATH := $(if $(GOPATH),$(GOPATH),~/go)
 GIT_VER := $(shell git describe --tags --always --dirty="-dev")
 ECR_URI := 223847889945.dkr.ecr.us-east-2.amazonaws.com/reorg-monitor
 
-PACKAGES := $(shell go list -mod=vendor ./...)
+PACKAGES := $(shell go list -mod=readonly ./...)
 DOCKER_TAG ?= flashbots/reorg-monitor:latest
 
 all: clean build
@@ -18,10 +18,14 @@ clean:
 test:
 	go test ./...
 
-lint:
+lint: vendor
 	@go fmt -mod=vendor $(PACKAGES)
 	go vet ./...
 	staticcheck ./...
+
+vendor:
+	go mod tidy
+	go mod vendor -v
 
 cover:
 	go test -coverprofile=/tmp/go-bid-receiver.cover.tmp ./...
