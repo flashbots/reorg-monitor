@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/flashbots/reorg-monitor/analysis"
 	"github.com/flashbots/reorg-monitor/database"
@@ -15,8 +16,13 @@ import (
 var db *database.DatabaseService
 
 func main() {
-	postgresDsn := "postgres://user1:password@localhost:5432/reorg?sslmode=disable"
-	db = database.NewDatabaseService(postgresDsn)
+	var (
+		postgresDsn = "postgres://user1:password@localhost:5432/reorg?sslmode=disable"
+		err         error
+	)
+
+	db, err = database.NewDatabaseService(postgresDsn)
+	reorgutils.Perror(err)
 
 	log.SetOutput(os.Stdout)
 
@@ -28,7 +34,7 @@ func main() {
 	}
 
 	testutils.EthNodeUri = *ethUriPtr
-	_, err := testutils.ConnectClient(*ethUriPtr)
+	_, err = testutils.ConnectClient(*ethUriPtr)
 	reorgutils.Perror(err)
 
 	// Test(testutils.Test_12996760_12996760_d1_b2)
@@ -53,7 +59,8 @@ func main() {
 
 	// Add the blocks
 	for _, ethBlock := range testutils.BlocksForStrings(test.BlockInfo) {
-		block := analysis.NewBlock(ethBlock, analysis.OriginSubscription, *ethUriPtr)
+		observed := time.Now().UTC().UnixNano()
+		block := analysis.NewBlock(ethBlock, analysis.OriginSubscription, *ethUriPtr, observed)
 		testutils.Monitor.AddBlock(block)
 	}
 

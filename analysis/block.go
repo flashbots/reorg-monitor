@@ -19,9 +19,10 @@ const (
 
 // Block is an geth Block and information about where it came from
 type Block struct {
-	Block   *types.Block
-	Origin  BlockOrigin
-	NodeUri string
+	Block                 *types.Block
+	Origin                BlockOrigin
+	NodeUri               string
+	ObservedUnixTimestamp int64
 
 	// some helpers
 	Number     uint64
@@ -29,11 +30,12 @@ type Block struct {
 	ParentHash common.Hash
 }
 
-func NewBlock(block *types.Block, origin BlockOrigin, nodeUri string) *Block {
+func NewBlock(block *types.Block, origin BlockOrigin, nodeUri string, observedUnix int64) *Block {
 	return &Block{
-		Block:   block,
-		Origin:  origin,
-		NodeUri: nodeUri,
+		Block:                 block,
+		Origin:                origin,
+		NodeUri:               nodeUri,
+		ObservedUnixTimestamp: observedUnix,
 
 		Number:     block.NumberU64(),
 		Hash:       block.Hash(),

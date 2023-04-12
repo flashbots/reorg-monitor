@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/flashbots/reorg-monitor/analysis"
 	"github.com/flashbots/reorg-monitor/monitor"
@@ -19,7 +20,7 @@ var mon *monitor.ReorgMonitor
 func main() {
 	log.SetOutput(os.Stdout)
 
-	ethUriPtr := flag.String("eth", os.Getenv("ETH_NODES"), "Geth node URI")
+	ethUriPtr := flag.String("eth", os.Getenv("ETH_NODES"), "Ethereum node URI")
 	flag.Parse()
 
 	ethUris := strings.Split(*ethUriPtr, ",")
@@ -49,7 +50,7 @@ func main() {
 func CheckReorg(blockIds []string) {
 	// Add the blocks
 	for _, ethBlock := range testutils.BlocksForStrings(blockIds) {
-		block := analysis.NewBlock(ethBlock, analysis.OriginSubscription, testutils.EthNodeUri)
+		block := analysis.NewBlock(ethBlock, analysis.OriginSubscription, testutils.EthNodeUri, time.Now().UTC().UnixNano())
 		mon.AddBlock(block)
 	}
 
@@ -73,7 +74,7 @@ func TestAndVerify(testCase testutils.TestCase) {
 
 	// Add the blocks
 	for _, ethBlock := range testutils.BlocksForStrings(testCase.BlockInfo) {
-		block := analysis.NewBlock(ethBlock, analysis.OriginSubscription, testutils.EthNodeUri)
+		block := analysis.NewBlock(ethBlock, analysis.OriginSubscription, testutils.EthNodeUri, time.Now().UTC().UnixNano())
 		testutils.Monitor.AddBlock(block)
 	}
 

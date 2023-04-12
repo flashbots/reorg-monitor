@@ -1,4 +1,4 @@
-// Summary of a specific reorg
+// Package analysis Summary of a specific reorg
 package analysis
 
 import (

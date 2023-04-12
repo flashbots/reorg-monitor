@@ -1,4 +1,4 @@
-version: '3.1'
+version: '3.8'
 
 volumes:
   psql_data:
@@ -6,21 +6,23 @@ volumes:
 
 services:
   db:
+    container_name: db
     image: postgres
     restart: always
     volumes:
       - 'psql_data:/var/lib/postgresql/data'
     ports:
-      - 5432:5432
+      - "5432:5432"
     environment:
       POSTGRES_USER: user1
       POSTGRES_PASSWORD: password
       POSTGRES_DB: reorg
 
   adminer:
+    container_name: adminer
     image: adminer
     restart: always
     depends_on:
       - db
     ports:
-      - 8092:8080
+      - "8092:8080"

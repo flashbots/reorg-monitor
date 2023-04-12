@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: reorg-monitor
+
+images:
+  - name: flashbots/reorg-monitor
+    newTag: 0.1.0
+
+replicas:
+  - name: reorg-monitor
+    count: 1
+  - name: postgres
+    count: 0
+
+resources:
+  - reorg-monitor-deployment.yaml
+  - reorg-monitor-service.yaml
+  - postgres-statefulset.yaml
+  - postgres-service.yaml
+
+secretGenerator:
+  - name: reorg-monitor-secrets
+    envs:
+      - default.env

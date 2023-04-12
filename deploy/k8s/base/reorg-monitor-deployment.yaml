@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reorg-monitor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: reorg-monitor
+      app.kubernetes.io/component: monitor
+      app.kubernetes.io/part-of: reorg-monitor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: reorg-monitor
+        app.kubernetes.io/component: monitor
+        app.kubernetes.io/part-of: reorg-monitor
+    spec:
+      containers:
+        - name: reorg-monitor
+          image: flashbots/reorg-monitor:latest
+          envFrom:
+            - secretRef:
+                name: reorg-monitor-secrets
+          ports:
+            - name: webserver
+              containerPort: 9090

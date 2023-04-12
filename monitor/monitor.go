@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/flashbots/reorg-monitor/analysis"
 	"github.com/pkg/errors"
@@ -232,7 +233,7 @@ func (mon *ReorgMonitor) EnsureBlock(blockHash common.Hash, origin analysis.Bloc
 		return nil, false, errors.Wrap(err, msg)
 	}
 
-	block = analysis.NewBlock(ethBlock, origin, nodeUri)
+	block = analysis.NewBlock(ethBlock, origin, nodeUri, time.Now().UTC().UnixNano())
 
 	// Add a new block without sending to channel, because that makes reorg.AddBlock() asynchronous, but we want reorg.AddBlock() to wait until all references are added.
 	mon.AddBlock(block)
