@@ -6,7 +6,7 @@ import (
 	"github.com/flashbots/reorg-monitor/analysis"
 	"github.com/flashbots/reorg-monitor/database"
 	"github.com/flashbots/reorg-monitor/monitor"
-	flashbotsrpc "github.com/metachris/flashbots-rpc"
+	"github.com/metachris/flashbotsrpc"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"log"
