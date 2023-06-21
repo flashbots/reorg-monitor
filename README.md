@@ -7,7 +7,7 @@ Watch and document Ethereum reorgs, including miner values of blocks.
 * Collect data in a Postgres database (summary and individual block info)
 * Webserver that shows status information and recent reorgs
 
-This project is currently work in progress and there may be bugs, although it works pretty stable now. 
+This project is work in progress and there may be bugs, although it works pretty stable now.
 Please open issues if you have ideas, questions or want to contribute :)
 
 ---
@@ -24,7 +24,7 @@ Please open issues if you have ideas, questions or want to contribute :)
 # Normal run, print only
 $ go run cmd/reorg-monitor/main.go --ethereum-jsonrpc-uris ws://geth_node:8546
 
-# Simulate blocks in a reorg 
+# Simulate blocks in a reorg
 $ go run cmd/reorg-monitor/main.go --simulate-blocks
 
 # Save to database
