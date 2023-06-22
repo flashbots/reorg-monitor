@@ -12,6 +12,16 @@ Please open issues if you have ideas, questions or want to contribute :)
 
 ---
 
+<!-- TOC -->
+* [Ethereum Reorg Monitor](#ethereum-reorg-monitor)
+  * [Getting started](#getting-started)
+  * [Codebase Overview & Architecture](#codebase-overview--architecture)
+  * [TODO](#todo)
+  * [Notes & References](#notes--references)
+  * [Maintainers](#maintainers)
+  * [Security](#security)
+<!-- TOC -->
+
 ## Getting started
 
 * Clone this repository
@@ -24,11 +34,12 @@ Please open issues if you have ideas, questions or want to contribute :)
 # Normal run, print only
 $ go run cmd/reorg-monitor/main.go --ethereum-jsonrpc-uris ws://geth_node:8546
 
-# Simulate blocks in a reorg
-$ go run cmd/reorg-monitor/main.go --simulate-blocks
+# Simulate blocks in a reorg - note: this requires passing in one or more RPC endpoints that support eth_callBundle API
+# The Flashbots RPC endpoints can be used to simulate blocks, for additional details see: https://docs.flashbots.net/flashbots-auction/searchers/advanced/rpc-endpoint#bundle-relay-urls
+$ go run cmd/reorg-monitor/main.go --simulate-blocks --mev-geth-uri https://relay.flashbots.net --ethereum-jsonrpc-uris ws://geth_node:8546
 
 # Save to database
-$ go run cmd/reorg-monitor/main.go --simulate-blocks --postgres-dsn ${POSTGRES_DSN_HERE}
+$ go run cmd/reorg-monitor/main.go --simulate-blocks --mev-geth-uri https://relay.flashbots.net --postgres-dsn ${POSTGRES_DSN_HERE} --ethereum-jsonrpc-uris ws://geth_node:8546
 
 # Get status from webserver
 $ curl localhost:9094
@@ -85,3 +96,13 @@ Tools:
 * https://composer.alchemyapi.io - to find out more about non-mainchain blocks ([`eth_getBlockByHash`](https://composer.alchemyapi.io/?composer_state=%7B%22chain%22%3A0%2C%22network%22%3A0%2C%22methodName%22%3A%22eth_getBlockByHash%22%2C%22paramValues%22%3A%5B%22YOUR_BLOCK_HASH_HERE%22%2Ctrue%5D%7D))
 * https://mermaid-js.github.io/mermaid-live-editor
 
+## Maintainers
+
+This project is currently maintained by:
+
+* [@metachris](https://twitter.com/metachris)
+* [@wazzymandias](https://twitter.com/wazzymandias)
+
+## Security
+
+If you find a security vulnerability on this project or any other initiative related to Flashbots, please let us know sending an email to security@flashbots.net.

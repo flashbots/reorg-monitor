@@ -18,7 +18,7 @@ import (
 	"github.com/flashbots/reorg-monitor/analysis"
 	"github.com/flashbots/reorg-monitor/database"
 	"github.com/flashbots/reorg-monitor/reorgutils"
-	flashbotsrpc "github.com/metachris/flashbots-rpc"
+	"github.com/metachris/flashbotsrpc"
 )
 
 var db *database.DatabaseService

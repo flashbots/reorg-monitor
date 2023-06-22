@@ -7,7 +7,7 @@ import (
 	"github.com/flashbots/reorg-monitor/analysis"
 	"github.com/flashbots/reorg-monitor/reorgutils"
 	_ "github.com/lib/pq"
-	flashbotsrpc "github.com/metachris/flashbots-rpc"
+	"github.com/metachris/flashbotsrpc"
 )
 
 var Schema = `
