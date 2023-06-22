@@ -1,9 +1,13 @@
 # Ethereum Reorg Monitor
 
+[![Goreport status](https://goreportcard.com/badge/github.com/flashbots/reorg-monitor)](https://goreportcard.com/report/github.com/flashbots/reorg-monitor)
+[![Test status](https://github.com/flashbots/reorg-monitor/workflows/Checks/badge.svg)](https://github.com/flashbots/reorg-monitor/actions?query=workflow%3A%22Checks%22)
+[![Docker hub](https://badgen.net/docker/size/flashbots/reorg-monitor?icon=docker&label=image)](https://hub.docker.com/r/flashbots/reorg-monitor/tags)
+
 Watch and document Ethereum reorgs, including miner values of blocks.
 
-* Monitor multiple Ethereum nodes (a WebSocket or IPC connection is necessary for subscribing to new blocks)
-* Capture miner value (gas fees and smart contract payments) by simulating blocks with [mev-geth](https://github.com/flashbots/mev-geth/)
+* Subscribe to multiple Ethereum nodes for new blocks (via WebSocket or IPC connection)
+* Capture block value (gas fees and smart contract payments) by simulating blocks with [mev-geth](https://github.com/flashbots/mev-geth/)
 * Collect data in a Postgres database (summary and individual block info)
 * Webserver that shows status information and recent reorgs
 
@@ -16,7 +20,6 @@ Please open issues if you have ideas, questions or want to contribute :)
 * [Ethereum Reorg Monitor](#ethereum-reorg-monitor)
   * [Getting started](#getting-started)
   * [Codebase Overview & Architecture](#codebase-overview--architecture)
-  * [TODO](#todo)
   * [Notes & References](#notes--references)
   * [Maintainers](#maintainers)
   * [Security](#security)
@@ -67,19 +70,11 @@ Code layout:
 
 ---
 
-## TODO
-
-Less important:
-
-* pool of mev-geth instances for simulating blocks
-* move simulation into monitor
-
----
-
 ## Notes & References
 
-* [etherscan.io/chart/uncles](https://etherscan.io/chart/uncles)
+* [https://beaconscan.com/slots-forked](beaconscan.com/slots-forked)
 * [etherscan.io/blocks_forked](https://etherscan.io/blocks_forked)
+* [etherscan.io/chart/uncles](https://etherscan.io/chart/uncles)
 * [Story of an Ethereum Reorg](https://docs.google.com/presentation/d/1ZHJp2HFOFeZxQAyPETRvcXW0oSOkZHAUhm7G-MoYyoQ/edit?usp=sharing)
 * [go-ethereum `WriteBlock` function](https://github.com/ethereum/go-ethereum/blob/525116dbff916825463931361f75e75e955c12e2/core/blockchain.go#L860), which calls the `reorg` method if a block is seen whos parent is not the current block
 * [Ethereum Whitepaper: Modified GHOST Implementation](https://ethereum.org/en/whitepaper/#modified-ghost-implementation)

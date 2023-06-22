@@ -18,10 +18,23 @@ clean:
 test:
 	go test ./...
 
-lint: vendor
-	@go fmt -mod=vendor $(PACKAGES)
+lint:
+	gofmt -d -s .
+	gofumpt -d -extra .
 	go vet ./...
 	staticcheck ./...
+#	golangci-lint run
+
+lt: lint test
+
+gofumpt:
+	gofumpt -l -w -extra .
+
+fmt:
+	gofmt -s -w .
+	gofumpt -extra -w .
+	gci write .
+	go mod tidy
 
 vendor:
 	go mod tidy
