@@ -16,10 +16,12 @@ import (
 	"github.com/metachris/flashbotsrpc"
 )
 
-var db *database.DatabaseService
-var client *ethclient.Client
-var rpc *flashbotsrpc.FlashbotsRPC
-var callBundlePrivKey, _ = crypto.GenerateKey()
+var (
+	db                   *database.DatabaseService
+	client               *ethclient.Client
+	rpc                  *flashbotsrpc.FlashbotsRPC
+	callBundlePrivKey, _ = crypto.GenerateKey()
+)
 
 func main() {
 	log.SetOutput(os.Stdout)

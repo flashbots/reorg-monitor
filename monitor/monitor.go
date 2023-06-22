@@ -6,10 +6,9 @@ import (
 	"log"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/flashbots/reorg-monitor/analysis"
 	"github.com/pkg/errors"
-
-	"github.com/ethereum/go-ethereum/common"
 )
 
 type ReorgMonitor struct {
@@ -240,7 +239,7 @@ func (mon *ReorgMonitor) EnsureBlock(blockHash common.Hash, origin analysis.Bloc
 	return block, false, nil
 }
 
-func (mon *ReorgMonitor) AnalyzeTree(maxBlocks uint64, distanceToLastBlockHeight uint64) (*analysis.TreeAnalysis, error) {
+func (mon *ReorgMonitor) AnalyzeTree(maxBlocks, distanceToLastBlockHeight uint64) (*analysis.TreeAnalysis, error) {
 	// Set end height of search
 	endBlockNumber := mon.LatestBlockNumber - distanceToLastBlockHeight
 

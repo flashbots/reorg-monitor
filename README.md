@@ -76,7 +76,7 @@ Code layout:
 * [etherscan.io/blocks_forked](https://etherscan.io/blocks_forked)
 * [etherscan.io/chart/uncles](https://etherscan.io/chart/uncles)
 * [Story of an Ethereum Reorg](https://docs.google.com/presentation/d/1ZHJp2HFOFeZxQAyPETRvcXW0oSOkZHAUhm7G-MoYyoQ/edit?usp=sharing)
-* [go-ethereum `WriteBlock` function](https://github.com/ethereum/go-ethereum/blob/525116dbff916825463931361f75e75e955c12e2/core/blockchain.go#L860), which calls the `reorg` method if a block is seen whos parent is not the current block
+* [go-ethereum `WriteBlock` function](https://github.com/ethereum/go-ethereum/blob/525116dbff916825463931361f75e75e955c12e2/core/blockchain.go#L860), which calls the `reorg` method if a block is seen of which the parent is not the current block
 * [Ethereum Whitepaper: Modified GHOST Implementation](https://ethereum.org/en/whitepaper/#modified-ghost-implementation)
 * [Ethereum Yellow Paper](https://ethereum.github.io/yellowpaper/paper.pdf)
 * [Ghost whitepaper](https://eprint.iacr.org/2013/881.pdf)

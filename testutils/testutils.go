@@ -16,9 +16,11 @@ import (
 	"github.com/flashbots/reorg-monitor/reorgutils"
 )
 
-var Client *ethclient.Client
-var EthNodeUri string
-var Monitor *monitor.ReorgMonitor
+var (
+	Client     *ethclient.Client
+	EthNodeUri string
+	Monitor    *monitor.ReorgMonitor
+)
 
 func ConnectClient(uri string) (client *ethclient.Client, err error) {
 	EthNodeUri = uri
