@@ -2,7 +2,6 @@
 
 [![Goreport status](https://goreportcard.com/badge/github.com/flashbots/reorg-monitor)](https://goreportcard.com/report/github.com/flashbots/reorg-monitor)
 [![Test status](https://github.com/flashbots/reorg-monitor/workflows/Checks/badge.svg)](https://github.com/flashbots/reorg-monitor/actions?query=workflow%3A%22Checks%22)
-[![Docker hub](https://badgen.net/docker/size/flashbots/reorg-monitor?icon=docker&label=image)](https://hub.docker.com/r/flashbots/reorg-monitor/tags)
 
 Watch and document Ethereum reorgs, including miner values of blocks.
 
