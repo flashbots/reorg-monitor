@@ -21,12 +21,14 @@ import (
 	"github.com/metachris/flashbotsrpc"
 )
 
-var db *database.DatabaseService
-var rpc *flashbotsrpc.FlashbotsRPC
-var client *ethclient.Client
-var mevGethClient *ethclient.Client
-var callBundlePrivKey, _ = crypto.GenerateKey()
-var ethUriPtr *string
+var (
+	db                   *database.DatabaseService
+	rpc                  *flashbotsrpc.FlashbotsRPC
+	client               *ethclient.Client
+	mevGethClient        *ethclient.Client
+	callBundlePrivKey, _ = crypto.GenerateKey()
+	ethUriPtr            *string
+)
 
 func main() {
 	log.SetOutput(os.Stdout)
@@ -101,10 +103,9 @@ func main() {
 	// Wait until all blocks have been processed
 	close(blockChan)
 	analyzeLock.Lock()
-
 }
 
-func addUncle(uncleBlock *types.Block, mainchainBlock *types.Block) {
+func addUncle(uncleBlock, mainchainBlock *types.Block) {
 	fmt.Println("addUncle", uncleBlock.Hash())
 
 	// Add to database now

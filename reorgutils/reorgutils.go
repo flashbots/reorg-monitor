@@ -55,12 +55,12 @@ func WeiToEth(wei *big.Int) (ethValue *big.Float) {
 
 var ColorGreen = "\033[1;32m%s\033[0m"
 
-func ColorPrintf(color string, format string, a ...interface{}) {
+func ColorPrintf(color, format string, a ...interface{}) {
 	str := fmt.Sprintf(format, a...)
 	fmt.Printf(string(color), str)
 }
 
-func GetBlocks(blockChan chan<- *types.Block, client *ethclient.Client, startBlock int64, endBlock int64, concurrency int) {
+func GetBlocks(blockChan chan<- *types.Block, client *ethclient.Client, startBlock, endBlock int64, concurrency int) {
 	var blockWorkerWg sync.WaitGroup
 	blockHeightChan := make(chan int64, 100) // blockHeight to fetch with receipts
 

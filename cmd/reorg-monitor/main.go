@@ -2,6 +2,9 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"strings"
+
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flashbots/reorg-monitor/analysis"
 	"github.com/flashbots/reorg-monitor/database"
@@ -9,8 +12,6 @@ import (
 	"github.com/metachris/flashbotsrpc"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"log"
-	"strings"
 )
 
 const (

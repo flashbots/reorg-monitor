@@ -73,7 +73,6 @@ func (ws *MonitorWebserver) HandleStatusRequest(w http.ResponseWriter, r *http.R
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(res)
-
 }
 
 func (ws *MonitorWebserver) ListenAndServe() error {
